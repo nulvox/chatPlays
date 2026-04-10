@@ -1,0 +1,194 @@
+"""Linux uinput-based virtual Xbox 360 controller.
+
+Requires:
+- python-uinput package  (pip install python-uinput)
+- uinput kernel module   (modprobe uinput)
+- User in 'input' group  (sudo usermod -aG input $USER, then re-login)
+
+The device presents with Xbox 360 USB vendor/product IDs (045e:028e) so Steam
+recognises it as a native controller without any special Steam Input profile.
+
+D-pad note: on a real Xbox 360 controller the d-pad is exposed as two HAT axes
+(ABS_HAT0X / ABS_HAT0Y), not as buttons. We replicate that here so Steam
+recognises it correctly.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+import time
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from controller import VirtualController
+from parser import Button, ButtonInput
+
+if TYPE_CHECKING:
+    from config import Config
+
+log = logging.getLogger(__name__)
+
+# Xbox 360 controller USB IDs
+_VENDOR_ID = 0x045E
+_PRODUCT_ID = 0x028E
+_BUS_USB = 0x03
+
+
+@dataclass(frozen=True)
+class _AxisPress:
+    """D-pad press encoded as an absolute axis event."""
+    axis: tuple[int, int]   # e.g. uinput.ABS_HAT0X
+    value: int              # -1, 0, or 1
+
+
+# Built lazily after uinput is imported
+_BUTTON_MAP: dict[Button, tuple[int, int]] = {}
+_DPAD_MAP: dict[Button, _AxisPress] = {}
+
+
+def _build_maps() -> tuple[dict[Button, tuple[int, int]], dict[Button, _AxisPress]]:
+    import uinput  # type: ignore[import-untyped]
+
+    buttons = {
+        Button.A: uinput.BTN_A,
+        Button.B: uinput.BTN_B,
+        Button.X: uinput.BTN_X,
+        Button.Y: uinput.BTN_Y,
+        Button.LB: uinput.BTN_TL,
+        Button.RB: uinput.BTN_TR,
+        Button.LT: uinput.BTN_TL2,
+        Button.RT: uinput.BTN_TR2,
+        Button.START: uinput.BTN_START,
+        Button.BACK: uinput.BTN_SELECT,
+        Button.GUIDE: uinput.BTN_MODE,
+        Button.LS: uinput.BTN_THUMBL,
+        Button.RS: uinput.BTN_THUMBR,
+    }
+
+    # D-pad is ABS_HAT0X (left/right) and ABS_HAT0Y (up/down).
+    # Y axis: -1 = up, +1 = down  (standard Linux HAT convention)
+    dpad = {
+        Button.UP:    _AxisPress(uinput.ABS_HAT0Y, -1),
+        Button.DOWN:  _AxisPress(uinput.ABS_HAT0Y,  1),
+        Button.LEFT:  _AxisPress(uinput.ABS_HAT0X, -1),
+        Button.RIGHT: _AxisPress(uinput.ABS_HAT0X,  1),
+    }
+
+    return buttons, dpad
+
+
+class LinuxController(VirtualController):
+    """Virtual Xbox 360 gamepad via /dev/uinput."""
+
+    def __init__(self, config: Config) -> None:
+        self._press_duration_ms = config.controller.press_duration_ms
+        self._device: object | None = None
+        self._button_map: dict[Button, tuple[int, int]] = {}
+        self._dpad_map: dict[Button, _AxisPress] = {}
+
+    def _ensure_device(self) -> None:
+        """Lazily create the uinput device on first use."""
+        if self._device is not None:
+            return
+
+        try:
+            import uinput  # type: ignore[import-untyped]
+        except ImportError as exc:
+            raise RuntimeError(
+                "python-uinput is not installed. "
+                "Install it with: pip install python-uinput"
+            ) from exc
+
+        self._button_map, self._dpad_map = _build_maps()
+
+        # Register the full Xbox 360 axis profile so Steam recognises the device
+        # correctly. Sticks and triggers are registered but held at zero — only
+        # the HAT axes are driven by d-pad commands.
+        stick_spec = (-32768, 32767, 16, 128)   # (min, max, fuzz, flat)
+        trigger_spec = (0, 255, 0, 0)
+        hat_spec = (-1, 1, 0, 0)
+        events = (
+            list(self._button_map.values())
+            + [
+                uinput.ABS_X    + stick_spec,
+                uinput.ABS_Y    + stick_spec,
+                uinput.ABS_Z    + trigger_spec,
+                uinput.ABS_RX   + stick_spec,
+                uinput.ABS_RY   + stick_spec,
+                uinput.ABS_RZ   + trigger_spec,
+                uinput.ABS_HAT0X + hat_spec,
+                uinput.ABS_HAT0Y + hat_spec,
+            ]
+        )
+
+        try:
+            self._device = uinput.Device(
+                events,
+                name="Microsoft X-Box 360 pad",
+                bustype=_BUS_USB,
+                vendor=_VENDOR_ID,
+                product=_PRODUCT_ID,
+                version=0x0114,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Failed to create uinput device. Common causes:\n"
+                "  • uinput module not loaded: run 'sudo modprobe uinput'\n"
+                "  • User not in 'input' group: run 'sudo usermod -aG input $USER' "
+                "and log out/in\n"
+                f"  • Original error: {exc}"
+            ) from exc
+
+        log.info(
+            "uinput device created: Microsoft X-Box 360 pad (%04x:%04x)",
+            _VENDOR_ID, _PRODUCT_ID,
+        )
+
+    async def press(self, button: ButtonInput) -> None:
+        """Emit button-down (or axis deflection), wait hold_ms, then release."""
+        self._ensure_device()
+        hold_s = button.hold_ms / 1000.0
+        log.debug("press %s for %dms", button.button.value, button.hold_ms)
+
+        if button.button in self._dpad_map:
+            ap = self._dpad_map[button.button]
+            await asyncio.to_thread(self._emit_axis_press, ap, hold_s)
+        elif button.button in self._button_map:
+            event = self._button_map[button.button]
+            await asyncio.to_thread(self._emit_button_press, event, hold_s)
+        else:
+            log.warning("No uinput mapping for button %s", button.button)
+
+    def _emit_button_press(self, event: tuple[int, int], hold_s: float) -> None:
+        assert self._device is not None
+        self._device.emit(event, 1)  # type: ignore[union-attr]
+        time.sleep(hold_s)
+        self._device.emit(event, 0)  # type: ignore[union-attr]
+
+    def _emit_axis_press(self, ap: _AxisPress, hold_s: float) -> None:
+        assert self._device is not None
+        self._device.emit(ap.axis, ap.value)   # type: ignore[union-attr]
+        time.sleep(hold_s)
+        self._device.emit(ap.axis, 0)          # type: ignore[union-attr]  # return to centre
+
+    async def release(self, button: ButtonInput) -> None:
+        """Explicitly release a button or centre an axis."""
+        self._ensure_device()
+        if button.button in self._dpad_map:
+            ap = self._dpad_map[button.button]
+            assert self._device is not None
+            await asyncio.to_thread(self._device.emit, ap.axis, 0)  # type: ignore[union-attr]
+        elif button.button in self._button_map:
+            event = self._button_map[button.button]
+            assert self._device is not None
+            await asyncio.to_thread(self._device.emit, event, 0)  # type: ignore[union-attr]
+
+    async def cleanup(self) -> None:
+        """Destroy the uinput device."""
+        if self._device is not None:
+            with contextlib.suppress(Exception):
+                self._device.__del__()  # type: ignore[union-attr]
+            self._device = None
+            log.info("uinput device destroyed")

@@ -1,0 +1,33 @@
+[discord]
+# Bot token — leave blank and set DISCORD_TOKEN env var instead for better security.
+# Obtain from: https://discord.com/developers/applications → Bot → Token
+token = ""
+# Snowflake ID of the channel where button commands will be accepted.
+# Enable Developer Mode in Discord settings, then right-click the channel → Copy ID.
+# Can also be set via DISCORD_CHANNEL_ID env var.
+channel_id = 0
+# Prefix that must appear before button names (e.g. "!" → "!a", "!start")
+command_prefix = "!"
+
+[queue]
+# Dispatch mode: "fifo" executes commands in order; "vote" tallies votes each window.
+# Switchable at runtime via the !mode operator command.
+mode = "fifo"
+# Duration of each voting window in seconds (vote mode only).
+vote_window_seconds = 5
+# Minimum seconds between command executions (fifo mode only).
+fifo_execute_interval = 0.1
+# Maximum number of commands held in the FIFO queue. Overflow drops the oldest entry.
+max_depth = 50
+
+[rate_limit]
+# Minimum seconds between accepted commands from the same user.
+cooldown_seconds = 1.0
+# Maximum commands accepted per user within one vote_window_seconds period.
+max_per_window = 3
+
+[controller]
+# How long (milliseconds) each button is held before being released.
+press_duration_ms = 100
+# Platform selection: "auto" detects OS; "linux" or "windows" forces a specific backend.
+platform = "auto"
