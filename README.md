@@ -1,4 +1,4 @@
-# discord-plays
+# chatPlays
 
 A Python daemon that lets Discord chat control a virtual Xbox 360 gamepad — "Twitch Plays" style — on Linux (Steam-compatible) and Windows.
 
@@ -28,12 +28,16 @@ sudo usermod -aG input $USER
 
 Log out and back in (or run `newgrp input` in the current shell) for the group change to take effect.
 
-**3. Install Python dependencies**
+**3. Install dependencies**
 
 ```bash
-pip install "discord-plays[dev]"
-# or with uv:
 uv sync
+```
+
+Or with pip:
+
+```bash
+pip install "chatplays[dev]"
 ```
 
 ### Windows
@@ -41,7 +45,7 @@ uv sync
 Install the [ViGEm Bus Driver](https://github.com/ViGEm/ViGEmBus/releases) first, then:
 
 ```bash
-pip install "discord-plays[windows]"
+uv sync --extra windows
 ```
 
 > **Note:** The Windows controller implementation is currently a stub (logs button presses but delivers no input). See `controller/windows.py` for the full implementation guide.
@@ -54,12 +58,60 @@ pip install "discord-plays[windows]"
 2. Navigate to **Bot** and click **Add Bot**.
 3. Under **Privileged Gateway Intents**, enable **Message Content Intent**.
    > This is required. Without it the bot cannot read message text and will not function.
-4. Copy the bot token — either paste it into `config.toml` under `[discord].token` or export it as an environment variable:
-   ```bash
-   export DISCORD_TOKEN="your-token-here"
-   ```
+4. Copy the bot token.
 5. Invite the bot to your server using the OAuth2 URL generator with scopes `bot` and permissions **Read Messages / View Channels**.
-6. Right-click the target channel in Discord (with Developer Mode enabled) and **Copy ID**. Paste this into `config.toml` as `channel_id`.
+6. Right-click the target channel in Discord (with Developer Mode enabled) and **Copy ID**.
+
+### Credentials via `.env`
+
+Copy the example file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
+
+```env
+DISCORD_TOKEN=your-bot-token-here
+DISCORD_CHANNEL_ID=123456789012345678
+```
+
+The `.env` file is already in `.gitignore` so your credentials stay out of version control. Pass it to `uv run` with the `--env-file` flag:
+
+```bash
+uv run --env-file .env chatplays
+```
+
+To avoid typing the flag every time, export it in your shell profile:
+
+```bash
+export UV_ENV_FILE=.env
+```
+
+You can also `source .env` or export the variables directly if you prefer.
+
+> **Note:** The same values can be set in `config.toml` under `[discord].token` and `[discord].channel_id`, but `.env` is the recommended approach — it keeps secrets out of config files entirely.
+
+---
+
+## Running
+
+```bash
+uv run --env-file .env chatplays
+```
+
+Or run the module directly:
+
+```bash
+uv run --env-file .env python main.py
+```
+
+Set `LOG_LEVEL=DEBUG` for verbose output:
+
+```bash
+LOG_LEVEL=DEBUG uv run --env-file .env chatplays
+```
 
 ---
 
@@ -71,8 +123,8 @@ All configuration lives in `config.toml`. Every field is listed below.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `token` | string | `""` | Bot token. Prefer `DISCORD_TOKEN` env var over storing here. |
-| `channel_id` | integer | `0` | Snowflake ID of the channel to listen in. |
+| `token` | string | `""` | Bot token. Prefer `DISCORD_TOKEN` env var / `.env` over storing here. |
+| `channel_id` | integer | `0` | Snowflake ID of the channel to listen in. Also settable via `DISCORD_CHANNEL_ID` env var. |
 | `command_prefix` | string | `"!"` | Prefix before button names, e.g. `!` → `!a`, `!start`. |
 
 ### `[queue]`
@@ -97,24 +149,37 @@ All configuration lives in `config.toml`. Every field is listed below.
 |---|---|---|---|
 | `press_duration_ms` | integer | `100` | How long (ms) each button is held before release. |
 | `platform` | `"auto"` \| `"linux"` \| `"windows"` | `"auto"` | Force a specific backend; `"auto"` detects the OS. |
+| `max_hold_ms` | integer | `5000` | Maximum hold duration for a single button press. Commands exceeding this are rejected. |
+| `max_sequence_steps` | integer | `20` | Maximum steps (chords + waits) in one command. Commands exceeding this are rejected. |
+| `max_total_duration_ms` | integer | `10000` | Maximum estimated execution time for one command. Commands exceeding this are rejected. |
 
 ---
 
-## Running
+## Command Syntax
 
-```bash
-python main.py
-# or, after installing as a package:
-discord-plays
+Commands start with the configured prefix (default `!`). The simplest form is a single button press:
+
+```
+!a        Press A with the default hold duration
 ```
 
-Set `LOG_LEVEL=DEBUG` for verbose output:
+The full syntax supports sequences, chords, custom timing, and analog sticks. See [SCRIPTING.md](SCRIPTING.md) for the complete guide with fighting game examples.
 
-```bash
-LOG_LEVEL=DEBUG python main.py
+### Quick Examples
+
+```
+!a            Single button press
+!a+b          Press A and B simultaneously
+!a:500        Hold A for 500ms
+!down right a Three-step sequence
+!2 3 6 a      Same as above in numpad notation
+!a ~200 b     Press A, wait 200ms, press B
+!lx:70+ly:-70 Left stick diagonal
 ```
 
-### Operator Commands
+---
+
+## Operator Commands
 
 These commands require **Manage Server** Discord permission:
 
@@ -122,9 +187,13 @@ These commands require **Manage Server** Discord permission:
 |---|---|
 | `!mode fifo` | Switch to FIFO dispatch mode |
 | `!mode vote` | Switch to vote dispatch mode |
-| `!status` | Show current mode, queue depth, and pause state |
+| `!status` | Show current mode, queue depth, pause state, and limits |
 | `!pause` | Halt command execution (stays connected) |
 | `!resume` | Resume command execution |
+| `!maxkeys <n>` | Limit commands to *n* button presses (0 = off) |
+| `!maxtime <ms>` | Limit commands to *ms* estimated duration (0 = off) |
+
+The `!maxkeys` and `!maxtime` limits enforce timesharing by **truncating** long commands at the first step that would exceed the limit, rather than rejecting them outright. These are adjustable at runtime and reset to off on restart.
 
 ---
 
@@ -193,7 +262,7 @@ If Steam does not detect the controller immediately, try toggling **Steam → Se
 ## Architecture
 
 ```
-discord-plays/
+chatPlays/
 ├── main.py                  # Entry point — wires modules together
 ├── config.py                # Loads and validates config.toml
 ├── queue_engine.py          # Command queue, dispatch loop, mode switching

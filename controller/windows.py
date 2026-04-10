@@ -22,7 +22,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from controller import VirtualController
-from parser import ButtonInput
+from parser import Axis, Button
 
 if TYPE_CHECKING:
     from config import Config
@@ -40,13 +40,14 @@ class WindowsController(VirtualController):
             "See controller/windows.py for implementation instructions."
         )
 
-    async def press(self, button: ButtonInput) -> None:
-        log.warning(
-            "[stub] press %s (%dms) — no-op on Windows stub", button.button.value, button.hold_ms
-        )
+    async def press_down(self, button: Button) -> None:
+        log.warning("[stub] press_down %s — no-op", button.value)
 
-    async def release(self, button: ButtonInput) -> None:
-        log.warning("[stub] release %s — no-op on Windows stub", button.button.value)
+    async def release_button(self, button: Button) -> None:
+        log.warning("[stub] release_button %s — no-op", button.value)
+
+    async def set_axis(self, axis: Axis, value: int) -> None:
+        log.warning("[stub] set_axis %s=%d — no-op", axis.value, value)
 
     async def cleanup(self) -> None:
         pass

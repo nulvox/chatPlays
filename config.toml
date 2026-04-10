@@ -31,3 +31,9 @@ max_per_window = 3
 press_duration_ms = 100
 # Platform selection: "auto" detects OS; "linux" or "windows" forces a specific backend.
 platform = "auto"
+# Maximum hold duration for a single button press (milliseconds).
+# max_hold_ms = 5000
+# Maximum number of steps (chords + waits) allowed in one command.
+# max_sequence_steps = 20
+# Maximum estimated total execution time for one command (milliseconds).
+# max_total_duration_ms = 10000

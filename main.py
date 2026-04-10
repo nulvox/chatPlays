@@ -1,4 +1,4 @@
-"""discord-plays — entry point.
+"""chatPlays — entry point.
 
 Wires together config, controller, queue engine, and Discord adapter,
 then runs the asyncio event loop until SIGINT/SIGTERM.
@@ -16,6 +16,7 @@ import sys
 from adapters.discord_adapter import DiscordAdapter
 from config import ConfigError, load_config
 from controller import get_controller
+from parser import set_limits
 from queue_engine import QueueEngine
 
 
@@ -31,6 +32,11 @@ def _configure_logging() -> None:
 
 async def _run() -> None:
     config = load_config()
+    set_limits(
+        max_hold_ms=config.controller.max_hold_ms,
+        max_steps=config.controller.max_sequence_steps,
+        max_total_ms=config.controller.max_total_duration_ms,
+    )
 
     controller = get_controller(config)
     engine = QueueEngine(config, controller)
@@ -76,7 +82,7 @@ async def _run() -> None:
 
     await adapter.stop()
     await engine.stop()
-    logging.getLogger(__name__).info("discord-plays shut down cleanly")
+    logging.getLogger(__name__).info("chatPlays shut down cleanly")
 
 
 def main() -> None:

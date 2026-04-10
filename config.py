@@ -1,4 +1,4 @@
-"""Configuration loading and validation for discord-plays."""
+"""Configuration loading and validation for chatPlays."""
 
 from __future__ import annotations
 
@@ -35,6 +35,9 @@ class RateLimitConfig:
 class ControllerConfig:
     press_duration_ms: int
     platform: Literal["auto", "linux", "windows"]
+    max_hold_ms: int = 5000
+    max_sequence_steps: int = 20
+    max_total_duration_ms: int = 10000
 
 
 @dataclass(frozen=True)
@@ -142,9 +145,16 @@ def load_config(path: str | Path = "config.toml") -> Config:
         )
     platform: Literal["auto", "linux", "windows"] = platform_raw  # type: ignore
 
+    max_hold_ms = int(ctrl_raw.get("max_hold_ms", 5000))
+    max_sequence_steps = int(ctrl_raw.get("max_sequence_steps", 20))
+    max_total_duration_ms = int(ctrl_raw.get("max_total_duration_ms", 10000))
+
     controller_cfg = ControllerConfig(
         press_duration_ms=press_duration_ms,
         platform=platform,
+        max_hold_ms=max_hold_ms,
+        max_sequence_steps=max_sequence_steps,
+        max_total_duration_ms=max_total_duration_ms,
     )
 
     return Config(

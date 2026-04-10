@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "discord-plays"
+name = "chatplays"
 version = "0.1.0"
-description = "Chat-driven Steam controller emulator — Discord Plays"
+description = "Chat-driven Steam controller emulator — chatPlays"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -27,7 +27,7 @@ dev = [
 ]
 
 [project.scripts]
-discord-plays = "main:main"
+chatplays = "main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["controller", "adapters"]
