@@ -18,12 +18,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from controller import VirtualController
-from parser import Button, ButtonInput
+from parser import Axis, Button
 
 if TYPE_CHECKING:
     from config import Config
@@ -47,9 +46,12 @@ class _AxisPress:
 # Built lazily after uinput is imported
 _BUTTON_MAP: dict[Button, tuple[int, int]] = {}
 _DPAD_MAP: dict[Button, _AxisPress] = {}
+_STICK_AXIS_MAP: dict[Axis, tuple[int, int]] = {}
 
 
-def _build_maps() -> tuple[dict[Button, tuple[int, int]], dict[Button, _AxisPress]]:
+def _build_maps() -> tuple[
+    dict[Button, tuple[int, int]], dict[Button, _AxisPress], dict[Axis, tuple[int, int]]
+]:
     import uinput
 
     buttons = {
@@ -77,7 +79,21 @@ def _build_maps() -> tuple[dict[Button, tuple[int, int]], dict[Button, _AxisPres
         Button.RIGHT: _AxisPress(uinput.ABS_HAT0X, 1),
     }
 
-    return buttons, dpad
+    stick_axes = {
+        Axis.LX: uinput.ABS_X,
+        Axis.LY: uinput.ABS_Y,
+        Axis.RX: uinput.ABS_RX,
+        Axis.RY: uinput.ABS_RY,
+    }
+
+    return buttons, dpad, stick_axes
+
+
+def _scale_axis(value: int) -> int:
+    """Convert percentage (-100..100) to raw stick axis value (-32768..32767)."""
+    if value >= 0:
+        return int(value * 32767 / 100)
+    return int(value * 32768 / 100)
 
 
 class LinuxController(VirtualController):
@@ -88,6 +104,7 @@ class LinuxController(VirtualController):
         self._device: object | None = None
         self._button_map: dict[Button, tuple[int, int]] = {}
         self._dpad_map: dict[Button, _AxisPress] = {}
+        self._stick_axis_map: dict[Axis, tuple[int, int]] = {}
 
     def _ensure_device(self) -> None:
         """Lazily create the uinput device on first use."""
@@ -101,7 +118,7 @@ class LinuxController(VirtualController):
                 "python-uinput is not installed. Install it with: pip install python-uinput"
             ) from exc
 
-        self._button_map, self._dpad_map = _build_maps()
+        self._button_map, self._dpad_map, self._stick_axis_map = _build_maps()
 
         # Register the full Xbox 360 axis profile so Steam recognises the device
         # correctly. Sticks and triggers are registered but held at zero — only
@@ -144,44 +161,39 @@ class LinuxController(VirtualController):
             _PRODUCT_ID,
         )
 
-    async def press(self, button: ButtonInput) -> None:
-        """Emit button-down (or axis deflection), wait hold_ms, then release."""
-        self._ensure_device()
-        hold_s = button.hold_ms / 1000.0
-        log.debug("press %s for %dms", button.button.value, button.hold_ms)
+    # ── Abstract primitive implementations ────────────────────────────────────
 
-        if button.button in self._dpad_map:
-            ap = self._dpad_map[button.button]
-            await asyncio.to_thread(self._emit_axis_press, ap, hold_s)
-        elif button.button in self._button_map:
-            event = self._button_map[button.button]
-            await asyncio.to_thread(self._emit_button_press, event, hold_s)
+    async def press_down(self, button: Button) -> None:
+        self._ensure_device()
+        assert self._device is not None
+        if button in self._dpad_map:
+            ap = self._dpad_map[button]
+            await asyncio.to_thread(self._device.emit, ap.axis, ap.value)  # type: ignore
+        elif button in self._button_map:
+            event = self._button_map[button]
+            await asyncio.to_thread(self._device.emit, event, 1)  # type: ignore
         else:
-            log.warning("No uinput mapping for button %s", button.button)
+            log.warning("No uinput mapping for button %s", button)
 
-    def _emit_button_press(self, event: tuple[int, int], hold_s: float) -> None:
-        assert self._device is not None
-        self._device.emit(event, 1)  # type: ignore
-        time.sleep(hold_s)
-        self._device.emit(event, 0)  # type: ignore
-
-    def _emit_axis_press(self, ap: _AxisPress, hold_s: float) -> None:
-        assert self._device is not None
-        self._device.emit(ap.axis, ap.value)  # type: ignore
-        time.sleep(hold_s)
-        self._device.emit(ap.axis, 0)  # type: ignore  # return to centre
-
-    async def release(self, button: ButtonInput) -> None:
-        """Explicitly release a button or centre an axis."""
+    async def release_button(self, button: Button) -> None:
         self._ensure_device()
-        if button.button in self._dpad_map:
-            ap = self._dpad_map[button.button]
-            assert self._device is not None
+        assert self._device is not None
+        if button in self._dpad_map:
+            ap = self._dpad_map[button]
             await asyncio.to_thread(self._device.emit, ap.axis, 0)  # type: ignore
-        elif button.button in self._button_map:
-            event = self._button_map[button.button]
-            assert self._device is not None
+        elif button in self._button_map:
+            event = self._button_map[button]
             await asyncio.to_thread(self._device.emit, event, 0)  # type: ignore
+
+    async def set_axis(self, axis: Axis, value: int) -> None:
+        self._ensure_device()
+        assert self._device is not None
+        if axis not in self._stick_axis_map:
+            log.warning("No uinput mapping for axis %s", axis)
+            return
+        uinput_axis = self._stick_axis_map[axis]
+        raw = _scale_axis(value)
+        await asyncio.to_thread(self._device.emit, uinput_axis, raw)  # type: ignore
 
     async def cleanup(self) -> None:
         """Destroy the uinput device."""

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from parser import Button, ButtonInput
+from parser import Button, ButtonInput, ChordStep, Sequence
 from queue_engine import QueueEngine
 
 # ── Minimal config stubs ───────────────────────────────────────────────────────
@@ -40,6 +40,9 @@ class _RLCfg:
 class _CtrlCfg:
     press_duration_ms: int = 50
     platform: str = "auto"
+    max_hold_ms: int = 5000
+    max_sequence_steps: int = 20
+    max_total_duration_ms: int = 10000
 
 
 @dataclass
@@ -65,8 +68,10 @@ def make_engine(
 ) -> tuple[QueueEngine, AsyncMock]:
     cfg = _Cfg(queue=_QueueCfg(mode=mode, max_depth=max_depth))
     mock_ctrl = AsyncMock()
-    mock_ctrl.press = AsyncMock()
-    mock_ctrl.release = AsyncMock()
+    mock_ctrl.execute_sequence = AsyncMock()
+    mock_ctrl.press_down = AsyncMock()
+    mock_ctrl.release_button = AsyncMock()
+    mock_ctrl.set_axis = AsyncMock()
     mock_ctrl.cleanup = AsyncMock()
     engine = QueueEngine(cfg, mock_ctrl)  # type: ignore
     return engine, mock_ctrl
@@ -83,7 +88,7 @@ class TestFifoMode:
         await engine.on_command("user1", "!a")
         await asyncio.sleep(0.2)  # let dispatch loop run
         await engine.stop()
-        ctrl.press.assert_awaited()
+        ctrl.execute_sequence.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_queue_overflow_drops_oldest(self):
@@ -105,7 +110,7 @@ class TestFifoMode:
         engine.pause()
         await engine.on_command("u", "!a")
         await asyncio.sleep(0.15)
-        assert ctrl.press.await_count == 0
+        assert ctrl.execute_sequence.await_count == 0
         await engine.stop()
 
     @pytest.mark.asyncio
@@ -118,7 +123,7 @@ class TestFifoMode:
         engine.resume()
         await asyncio.sleep(0.2)
         await engine.stop()
-        ctrl.press.assert_awaited()
+        ctrl.execute_sequence.assert_awaited()
 
 
 class TestVoteMode:
@@ -133,9 +138,11 @@ class TestVoteMode:
         # Wait for window to expire and execute
         await asyncio.sleep(0.5)
         await engine.stop()
-        assert ctrl.press.await_count == 1
-        call_arg: ButtonInput = ctrl.press.call_args[0][0]
-        assert call_arg.button == Button.A
+        assert ctrl.execute_sequence.await_count == 1
+        call_arg: Sequence = ctrl.execute_sequence.call_args[0][0]
+        step = call_arg.steps[0]
+        assert isinstance(step, ChordStep)
+        assert step.buttons[0].button == Button.A
 
     @pytest.mark.asyncio
     async def test_tie_broken_by_earliest(self):
@@ -147,8 +154,10 @@ class TestVoteMode:
         await engine.on_command("u2", "!b")
         await asyncio.sleep(0.5)
         await engine.stop()
-        call_arg: ButtonInput = ctrl.press.call_args[0][0]
-        assert call_arg.button == Button.A
+        call_arg: Sequence = ctrl.execute_sequence.call_args[0][0]
+        step = call_arg.steps[0]
+        assert isinstance(step, ChordStep)
+        assert step.buttons[0].button == Button.A
 
 
 class TestModeSwitching:
@@ -174,24 +183,56 @@ class TestModeSwitching:
 
 
 class TestTallyVotes:
-    def test_single_entry(self):
-        from queue_engine import QueueEngine
+    def _seq(self, button: Button, hold: int = 100) -> Sequence:
+        step = ChordStep(buttons=(ButtonInput(button, hold),), axes=())
+        canonical = f"{button.value}:{hold}"
+        return Sequence(steps=(step,), canonical=canonical)
 
-        buf = [(0.0, ButtonInput(Button.A, 100))]
+    def test_single_entry(self):
+        buf = [(0.0, self._seq(Button.A))]
         result = QueueEngine._tally_votes(buf)
         assert result is not None
-        assert result.button == Button.A
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        assert step.buttons[0].button == Button.A
 
     def test_majority_wins(self):
         buf = [
-            (0.0, ButtonInput(Button.A, 100)),
-            (0.1, ButtonInput(Button.B, 100)),
-            (0.2, ButtonInput(Button.A, 100)),
+            (0.0, self._seq(Button.A)),
+            (0.1, self._seq(Button.B)),
+            (0.2, self._seq(Button.A)),
         ]
         result = QueueEngine._tally_votes(buf)
         assert result is not None
-        assert result.button == Button.A
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        assert step.buttons[0].button == Button.A
 
     def test_empty_buffer(self):
         result = QueueEngine._tally_votes([])
         assert result is None
+
+    def test_sequence_commands_grouped(self):
+        """Identical sequence commands should be grouped together in votes."""
+        seq1 = Sequence(
+            steps=(
+                ChordStep(buttons=(ButtonInput(Button.DOWN, 100),), axes=()),
+                ChordStep(buttons=(ButtonInput(Button.RIGHT, 100),), axes=()),
+                ChordStep(buttons=(ButtonInput(Button.A, 100),), axes=()),
+            ),
+            canonical="a:100 down:100 right:100",
+        )
+        seq2 = Sequence(
+            steps=(
+                ChordStep(buttons=(ButtonInput(Button.DOWN, 100),), axes=()),
+                ChordStep(buttons=(ButtonInput(Button.RIGHT, 100),), axes=()),
+                ChordStep(buttons=(ButtonInput(Button.A, 100),), axes=()),
+            ),
+            canonical="a:100 down:100 right:100",  # same canonical
+        )
+        seq_other = self._seq(Button.B)
+
+        buf = [(0.0, seq1), (0.1, seq2), (0.2, seq_other)]
+        result = QueueEngine._tally_votes(buf)
+        assert result is not None
+        assert result.canonical == seq1.canonical

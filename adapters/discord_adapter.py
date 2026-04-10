@@ -117,6 +117,12 @@ class DiscordAdapter(ChatAdapter):
             if body == "resume":
                 await self._handle_resume(message)
                 return
+            if body.startswith("maxkeys "):
+                await self._handle_maxkeys(message, body[8:].strip())
+                return
+            if body.startswith("maxtime "):
+                await self._handle_maxtime(message, body[8:].strip())
+                return
 
             # ── Rate limiting ─────────────────────────────────────────────────
             if not self._check_rate_limit(user_id):
@@ -177,7 +183,9 @@ class DiscordAdapter(ChatAdapter):
             f"**Status** | mode: {status['mode']} | "
             f"queue depth: {status['queue_depth']} | "
             f"paused: {status['paused']} | "
-            f"vote window: {status.get('vote_window_remaining', 'n/a')}"
+            f"vote window: {status.get('vote_window_remaining', 'n/a')} | "
+            f"max keys: {status['max_keypresses']} | "
+            f"max time: {status['max_command_duration_ms']}"
         )
 
     async def _handle_pause(self, message: discord.Message) -> None:
@@ -193,6 +201,40 @@ class DiscordAdapter(ChatAdapter):
         self._queue_engine.resume()
         log.info("Operator %s resumed execution", message.author.id)
         await message.channel.send("Execution **resumed**")
+
+    async def _handle_maxkeys(self, message: discord.Message, value_str: str) -> None:
+        if not self._is_operator(message.author):
+            return
+        try:
+            value = int(value_str)
+        except ValueError:
+            await message.channel.send(
+                f"Invalid value '{value_str}'. Use: `!maxkeys <int>` (0=off)"
+            )
+            return
+        if value < 0:
+            await message.channel.send("Value must be 0 or positive (0=off)")
+            return
+        self._queue_engine.set_max_keypresses(value)
+        label = f"**{value}**" if value else "**off**"
+        log.info("Operator %s set max keypresses to %d", message.author.id, value)
+        await message.channel.send(f"Max keypresses per command: {label}")
+
+    async def _handle_maxtime(self, message: discord.Message, value_str: str) -> None:
+        if not self._is_operator(message.author):
+            return
+        try:
+            value = int(value_str)
+        except ValueError:
+            await message.channel.send(f"Invalid value '{value_str}'. Use: `!maxtime <ms>` (0=off)")
+            return
+        if value < 0:
+            await message.channel.send("Value must be 0 or positive (0=off)")
+            return
+        self._queue_engine.set_max_command_duration_ms(value)
+        label = f"**{value}ms**" if value else "**off**"
+        log.info("Operator %s set max command duration to %d", message.author.id, value)
+        await message.channel.send(f"Max command duration: {label}")
 
     async def start(self) -> None:
         log.info("Starting Discord adapter (channel_id=%d)", self._config.discord.channel_id)

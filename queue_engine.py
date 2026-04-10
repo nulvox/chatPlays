@@ -17,7 +17,7 @@ import time
 from collections import Counter
 from typing import TYPE_CHECKING, Literal
 
-from parser import ButtonInput, parse_command
+from parser import Sequence, parse_command
 
 if TYPE_CHECKING:
     from config import Config
@@ -37,31 +37,47 @@ class QueueEngine:
         self._running = False
 
         # FIFO state
-        self._fifo_queue: asyncio.Queue[ButtonInput] = asyncio.Queue(maxsize=config.queue.max_depth)
+        self._fifo_queue: asyncio.Queue[Sequence] = asyncio.Queue(maxsize=config.queue.max_depth)
 
         # Vote state
-        # Each entry: (monotonic_time, ButtonInput) — time for tie-breaking
-        self._vote_buffer: list[tuple[float, ButtonInput]] = []
+        # Each entry: (monotonic_time, Sequence) — time for tie-breaking
+        self._vote_buffer: list[tuple[float, Sequence]] = []
         self._vote_window_start: float = 0.0
 
         self._dispatch_task: asyncio.Task[None] | None = None
 
+        # Timesharing limits (0 = unlimited, adjustable at runtime)
+        self._max_keypresses: int = 0
+        self._max_command_duration_ms: int = 0
+
     # ── Public API ─────────────────────────────────────────────────────────────
+
+    def set_max_keypresses(self, value: int) -> None:
+        """Set the per-command keypress limit (0 = unlimited)."""
+        self._max_keypresses = max(0, value)
+        log.info("Max keypresses per command set to %d (0=unlimited)", self._max_keypresses)
+
+    def set_max_command_duration_ms(self, value: int) -> None:
+        """Set the per-command duration limit in ms (0 = unlimited)."""
+        self._max_command_duration_ms = max(0, value)
+        log.info("Max command duration set to %dms (0=unlimited)", self._max_command_duration_ms)
 
     async def on_command(self, user_id: str, raw: str) -> None:
         """Called by the chat adapter when a validated, rate-limited command arrives."""
-        btn_input = parse_command(
+        seq = parse_command(
             raw,
             self._config.discord.command_prefix,
             self._config.controller.press_duration_ms,
+            max_keypresses=self._max_keypresses,
+            max_command_duration_ms=self._max_command_duration_ms,
         )
-        if btn_input is None:
+        if seq is None:
             return
 
         if self._mode == "fifo":
-            await self._enqueue_fifo(user_id, btn_input)
+            await self._enqueue_fifo(user_id, seq)
         else:
-            self._enqueue_vote(user_id, btn_input)
+            self._enqueue_vote(user_id, seq)
 
     def set_mode(self, mode: Literal["fifo", "vote"]) -> None:
         """Switch dispatch mode, draining/discarding the current queue first."""
@@ -91,6 +107,8 @@ class QueueEngine:
             elapsed = time.monotonic() - self._vote_window_start
             remaining = max(0.0, self._config.queue.vote_window_seconds - elapsed)
             status["vote_window_remaining"] = f"{remaining:.1f}s"
+        status["max_keypresses"] = self._max_keypresses or "off"
+        status["max_command_duration_ms"] = self._max_command_duration_ms or "off"
         return status
 
     async def start(self) -> None:
@@ -112,28 +130,28 @@ class QueueEngine:
 
     # ── Internal helpers ───────────────────────────────────────────────────────
 
-    async def _enqueue_fifo(self, user_id: str, btn: ButtonInput) -> None:
+    async def _enqueue_fifo(self, user_id: str, seq: Sequence) -> None:
         if self._fifo_queue.full():
             # Drop the oldest command to make room (overflow policy: drop oldest)
             try:
                 dropped = self._fifo_queue.get_nowait()
-                log.debug("Queue full — dropped oldest: %s", dropped.button.value)
+                log.debug("Queue full — dropped oldest: %s", dropped.canonical)
             except asyncio.QueueEmpty:
                 pass
-        await self._fifo_queue.put(btn)
+        await self._fifo_queue.put(seq)
         log.info(
-            "Accepted command: user=%s button=%s mode=fifo queue_depth=%d",
+            "Accepted command: user=%s cmd=%s mode=fifo queue_depth=%d",
             user_id,
-            btn.button.value,
+            seq.canonical,
             self._fifo_queue.qsize(),
         )
 
-    def _enqueue_vote(self, user_id: str, btn: ButtonInput) -> None:
-        self._vote_buffer.append((time.monotonic(), btn))
+    def _enqueue_vote(self, user_id: str, seq: Sequence) -> None:
+        self._vote_buffer.append((time.monotonic(), seq))
         log.info(
-            "Accepted command: user=%s button=%s mode=vote queue_depth=%d",
+            "Accepted command: user=%s cmd=%s mode=vote queue_depth=%d",
             user_id,
-            btn.button.value,
+            seq.canonical,
             len(self._vote_buffer),
         )
 
@@ -168,11 +186,11 @@ class QueueEngine:
             return
 
         try:
-            btn = await asyncio.wait_for(self._fifo_queue.get(), timeout=interval)
+            seq = await asyncio.wait_for(self._fifo_queue.get(), timeout=interval)
         except TimeoutError:
             return  # nothing in queue, loop again
 
-        await self._execute(btn, "fifo")
+        await self._execute(seq, "fifo")
         # Respect the configured interval between presses
         await asyncio.sleep(interval)
 
@@ -199,40 +217,39 @@ class QueueEngine:
             await self._execute(winner, "vote")
 
     @staticmethod
-    def _tally_votes(buffer: list[tuple[float, ButtonInput]]) -> ButtonInput | None:
-        """Return the winning ButtonInput by vote count; break ties by earliest submission."""
+    def _tally_votes(buffer: list[tuple[float, Sequence]]) -> Sequence | None:
+        """Return the winning Sequence by vote count; break ties by earliest submission."""
         if not buffer:
             return None
 
-        counts: Counter[str] = Counter(entry.button.value for _, entry in buffer)
+        counts: Counter[str] = Counter(entry.canonical for _, entry in buffer)
         max_votes = max(counts.values())
-        winners = [btn_name for btn_name, cnt in counts.items() if cnt == max_votes]
+        winners = [name for name, cnt in counts.items() if cnt == max_votes]
 
         if len(winners) == 1:
             winning_name = winners[0]
         else:
             # Tie-break: earliest submission time
             for _, entry in buffer:
-                if entry.button.value in winners:
-                    winning_name = entry.button.value
+                if entry.canonical in winners:
+                    winning_name = entry.canonical
                     break
             else:
                 winning_name = winners[0]
 
-        # Return the first ButtonInput with the winning button name
+        # Return the first Sequence with the winning canonical name
         for _, entry in buffer:
-            if entry.button.value == winning_name:
+            if entry.canonical == winning_name:
                 return entry
         return None
 
-    async def _execute(self, btn: ButtonInput, dispatch_mode: str) -> None:
+    async def _execute(self, seq: Sequence, dispatch_mode: str) -> None:
         log.info(
-            "Executing: button=%s hold_ms=%d dispatch_mode=%s",
-            btn.button.value,
-            btn.hold_ms,
+            "Executing: cmd=%s dispatch_mode=%s",
+            seq.canonical,
             dispatch_mode,
         )
         try:
-            await self._controller.press(btn)
+            await self._controller.execute_sequence(seq)
         except Exception:
-            log.exception("Controller error while pressing %s", btn.button.value)
+            log.exception("Controller error while executing %s", seq.canonical)
