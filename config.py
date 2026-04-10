@@ -29,6 +29,7 @@ class QueueConfig:
 class RateLimitConfig:
     cooldown_seconds: float
     max_per_window: int
+    global_max_per_minute: int
 
 
 @dataclass(frozen=True)
@@ -130,9 +131,12 @@ def load_config(path: str | Path = "config.toml") -> Config:
     cooldown = float(_require(rl_raw, "cooldown_seconds", (int, float), "rate_limit"))  # type: ignore
     max_per_window = int(_require(rl_raw, "max_per_window", int, "rate_limit"))  # type: ignore
 
+    global_max_per_minute = int(rl_raw.get("global_max_per_minute", 60))
+
     rate_limit_cfg = RateLimitConfig(
         cooldown_seconds=cooldown,
         max_per_window=max_per_window,
+        global_max_per_minute=global_max_per_minute,
     )
 
     # ── [controller] ───────────────────────────────────────────────────────────

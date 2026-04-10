@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
@@ -45,6 +45,8 @@ class DiscordAdapter(ChatAdapter):
         self._last_command_time: dict[str, float] = defaultdict(float)
         # window_command_count[user_id] = (window_start_time, count)
         self._window_counts: dict[str, tuple[float, int]] = {}
+        # Global rate limiting: timestamps of accepted commands within the last 60s
+        self._global_command_times: deque[float] = deque()
 
         intents = discord.Intents.default()
         intents.messages = True  # Receive message events in guilds
@@ -125,6 +127,9 @@ class DiscordAdapter(ChatAdapter):
                 return
 
             # ── Rate limiting ─────────────────────────────────────────────────
+            if not self._check_global_rate_limit():
+                log.debug("Global rate limited")
+                return
             if not self._check_rate_limit(user_id):
                 log.debug("Rate limited: user=%s", user_id)
                 return
@@ -132,6 +137,20 @@ class DiscordAdapter(ChatAdapter):
             # ── Pass to queue engine ──────────────────────────────────────────
             log.debug("Accepted command from user=%s: %s", user_id, content)
             await self.on_command(user_id, content)
+
+    def _check_global_rate_limit(self) -> bool:
+        """Return True if under the global commands-per-minute cap (0=disabled)."""
+        cap = self._config.rate_limit.global_max_per_minute
+        if cap <= 0:
+            return True
+        now = time.monotonic()
+        # Evict entries older than 60 seconds
+        while self._global_command_times and now - self._global_command_times[0] > 60.0:
+            self._global_command_times.popleft()
+        if len(self._global_command_times) >= cap:
+            return False
+        self._global_command_times.append(now)
+        return True
 
     def _check_rate_limit(self, user_id: str) -> bool:
         """Return True if the command should be accepted, False if rate-limited."""

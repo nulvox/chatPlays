@@ -25,6 +25,8 @@ max_depth = 50
 cooldown_seconds = 1.0
 # Maximum commands accepted per user within one vote_window_seconds period.
 max_per_window = 3
+# Maximum commands accepted globally (across all users) per minute (0=off).
+# global_max_per_minute = 60
 
 [controller]
 # How long (milliseconds) each button is held before being released.
