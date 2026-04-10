@@ -72,7 +72,7 @@ All configuration lives in `config.toml`. Every field is listed below.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `token` | string | `""` | Bot token. Prefer `DISCORD_TOKEN` env var over storing here. |
-| `channel_id` | integer | `0` | Snowflake ID of the channel to listen in. |
+| `channel_id` | integer | `0` | Snowflake ID of the channel to listen in. Also settable via `DISCORD_CHANNEL_ID` env var. |
 | `command_prefix` | string | `"!"` | Prefix before button names, e.g. `!` → `!a`, `!start`. |
 
 ### `[queue]`
@@ -97,6 +97,9 @@ All configuration lives in `config.toml`. Every field is listed below.
 |---|---|---|---|
 | `press_duration_ms` | integer | `100` | How long (ms) each button is held before release. |
 | `platform` | `"auto"` \| `"linux"` \| `"windows"` | `"auto"` | Force a specific backend; `"auto"` detects the OS. |
+| `max_hold_ms` | integer | `5000` | Maximum hold duration for a single button press. Commands exceeding this are rejected. |
+| `max_sequence_steps` | integer | `20` | Maximum steps (chords + waits) in one command. Commands exceeding this are rejected. |
+| `max_total_duration_ms` | integer | `10000` | Maximum estimated execution time for one command. Commands exceeding this are rejected. |
 
 ---
 
@@ -114,7 +117,32 @@ Set `LOG_LEVEL=DEBUG` for verbose output:
 LOG_LEVEL=DEBUG python main.py
 ```
 
-### Operator Commands
+---
+
+## Command Syntax
+
+Commands start with the configured prefix (default `!`). The simplest form is a single button press:
+
+```
+!a        Press A with the default hold duration
+```
+
+The full syntax supports sequences, chords, custom timing, and analog sticks. See [SCRIPTING.md](SCRIPTING.md) for the complete guide with fighting game examples.
+
+### Quick Examples
+
+```
+!a            Single button press
+!a+b          Press A and B simultaneously
+!a:500        Hold A for 500ms
+!down right a Three-step sequence
+!a ~200 b     Press A, wait 200ms, press B
+!lx:70+ly:-70 Left stick diagonal
+```
+
+---
+
+## Operator Commands
 
 These commands require **Manage Server** Discord permission:
 
@@ -122,9 +150,13 @@ These commands require **Manage Server** Discord permission:
 |---|---|
 | `!mode fifo` | Switch to FIFO dispatch mode |
 | `!mode vote` | Switch to vote dispatch mode |
-| `!status` | Show current mode, queue depth, and pause state |
+| `!status` | Show current mode, queue depth, pause state, and limits |
 | `!pause` | Halt command execution (stays connected) |
 | `!resume` | Resume command execution |
+| `!maxkeys <n>` | Limit commands to *n* button presses (0 = off) |
+| `!maxtime <ms>` | Limit commands to *ms* estimated duration (0 = off) |
+
+The `!maxkeys` and `!maxtime` limits enforce timesharing by **truncating** long commands at the first step that would exceed the limit, rather than rejecting them outright. These are adjustable at runtime and reset to off on restart.
 
 ---
 
