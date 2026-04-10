@@ -1,4 +1,4 @@
-"""Configuration loading and validation for discord-plays."""
+"""Configuration loading and validation for chatPlays."""
 
 from __future__ import annotations
 

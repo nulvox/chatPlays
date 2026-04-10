@@ -1,4 +1,4 @@
-"""Discord chat adapter for discord-plays.
+"""Discord chat adapter for chatPlays.
 
 IMPORTANT — Discord bot setup:
   1. Create a bot at https://discord.com/developers/applications

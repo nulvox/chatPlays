@@ -1,4 +1,4 @@
-"""Command queue and dispatch engine for discord-plays.
+"""Command queue and dispatch engine for chatPlays.
 
 Supports two modes:
   fifo — Execute commands in order, one every fifo_execute_interval seconds.

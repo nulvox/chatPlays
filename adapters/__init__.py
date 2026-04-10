@@ -1,4 +1,4 @@
-"""Chat adapter abstraction for discord-plays.
+"""Chat adapter abstraction for chatPlays.
 
 New adapters (Twitch IRC, Matrix, etc.) must subclass ChatAdapter and implement
 start() / stop(). When a valid command arrives the adapter must call

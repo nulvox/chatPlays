@@ -1,4 +1,4 @@
-# discord-plays
+# chatPlays
 
 A Python daemon that lets Discord chat control a virtual Xbox 360 gamepad — "Twitch Plays" style — on Linux (Steam-compatible) and Windows.
 
@@ -28,12 +28,16 @@ sudo usermod -aG input $USER
 
 Log out and back in (or run `newgrp input` in the current shell) for the group change to take effect.
 
-**3. Install Python dependencies**
+**3. Install dependencies**
 
 ```bash
-pip install "discord-plays[dev]"
-# or with uv:
 uv sync
+```
+
+Or with pip:
+
+```bash
+pip install "chatplays[dev]"
 ```
 
 ### Windows
@@ -41,7 +45,7 @@ uv sync
 Install the [ViGEm Bus Driver](https://github.com/ViGEm/ViGEmBus/releases) first, then:
 
 ```bash
-pip install "discord-plays[windows]"
+uv sync --extra windows
 ```
 
 > **Note:** The Windows controller implementation is currently a stub (logs button presses but delivers no input). See `controller/windows.py` for the full implementation guide.
@@ -54,12 +58,48 @@ pip install "discord-plays[windows]"
 2. Navigate to **Bot** and click **Add Bot**.
 3. Under **Privileged Gateway Intents**, enable **Message Content Intent**.
    > This is required. Without it the bot cannot read message text and will not function.
-4. Copy the bot token — either paste it into `config.toml` under `[discord].token` or export it as an environment variable:
-   ```bash
-   export DISCORD_TOKEN="your-token-here"
-   ```
+4. Copy the bot token.
 5. Invite the bot to your server using the OAuth2 URL generator with scopes `bot` and permissions **Read Messages / View Channels**.
-6. Right-click the target channel in Discord (with Developer Mode enabled) and **Copy ID**. Paste this into `config.toml` as `channel_id`.
+6. Right-click the target channel in Discord (with Developer Mode enabled) and **Copy ID**.
+
+### Credentials via `.env`
+
+Copy the example file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
+
+```env
+DISCORD_TOKEN=your-bot-token-here
+DISCORD_CHANNEL_ID=123456789012345678
+```
+
+The `.env` file is loaded automatically by `uv run` and is already in `.gitignore` so your credentials stay out of version control. You can also export these variables directly in your shell if you prefer.
+
+> **Note:** The same values can be set in `config.toml` under `[discord].token` and `[discord].channel_id`, but `.env` is the recommended approach — it keeps secrets out of config files entirely.
+
+---
+
+## Running
+
+```bash
+uv run chatplays
+```
+
+Or run the module directly:
+
+```bash
+uv run python main.py
+```
+
+Set `LOG_LEVEL=DEBUG` for verbose output:
+
+```bash
+LOG_LEVEL=DEBUG uv run chatplays
+```
 
 ---
 
@@ -71,7 +111,7 @@ All configuration lives in `config.toml`. Every field is listed below.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `token` | string | `""` | Bot token. Prefer `DISCORD_TOKEN` env var over storing here. |
+| `token` | string | `""` | Bot token. Prefer `DISCORD_TOKEN` env var / `.env` over storing here. |
 | `channel_id` | integer | `0` | Snowflake ID of the channel to listen in. Also settable via `DISCORD_CHANNEL_ID` env var. |
 | `command_prefix` | string | `"!"` | Prefix before button names, e.g. `!` → `!a`, `!start`. |
 
@@ -100,22 +140,6 @@ All configuration lives in `config.toml`. Every field is listed below.
 | `max_hold_ms` | integer | `5000` | Maximum hold duration for a single button press. Commands exceeding this are rejected. |
 | `max_sequence_steps` | integer | `20` | Maximum steps (chords + waits) in one command. Commands exceeding this are rejected. |
 | `max_total_duration_ms` | integer | `10000` | Maximum estimated execution time for one command. Commands exceeding this are rejected. |
-
----
-
-## Running
-
-```bash
-python main.py
-# or, after installing as a package:
-discord-plays
-```
-
-Set `LOG_LEVEL=DEBUG` for verbose output:
-
-```bash
-LOG_LEVEL=DEBUG python main.py
-```
 
 ---
 
@@ -225,7 +249,7 @@ If Steam does not detect the controller immediately, try toggling **Steam → Se
 ## Architecture
 
 ```
-discord-plays/
+chatPlays/
 ├── main.py                  # Entry point — wires modules together
 ├── config.py                # Loads and validates config.toml
 ├── queue_engine.py          # Command queue, dispatch loop, mode switching

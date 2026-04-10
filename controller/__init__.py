@@ -1,4 +1,4 @@
-"""Controller abstraction layer for discord-plays.
+"""Controller abstraction layer for chatPlays.
 
 Provides the VirtualController abstract base class and a factory function
 `get_controller` that selects the correct platform implementation.

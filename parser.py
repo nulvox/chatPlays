@@ -1,4 +1,4 @@
-"""Command parser for discord-plays.
+"""Command parser for chatPlays.
 
 Syntax
 ------

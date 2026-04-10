@@ -1,6 +1,6 @@
 # Scripting Guide
 
-This guide covers the full command syntax for discord-plays, including chords, sequences, timing control, and analog sticks. All examples assume the default `!` prefix.
+This guide covers the full command syntax for chatPlays, including chords, sequences, timing control, and analog sticks. All examples assume the default `!` prefix.
 
 ---
 
