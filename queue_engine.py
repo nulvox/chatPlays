@@ -37,9 +37,7 @@ class QueueEngine:
         self._running = False
 
         # FIFO state
-        self._fifo_queue: asyncio.Queue[ButtonInput] = asyncio.Queue(
-            maxsize=config.queue.max_depth
-        )
+        self._fifo_queue: asyncio.Queue[ButtonInput] = asyncio.Queue(maxsize=config.queue.max_depth)
 
         # Vote state
         # Each entry: (monotonic_time, ButtonInput) — time for tie-breaking
@@ -85,7 +83,9 @@ class QueueEngine:
         status: dict[str, object] = {
             "mode": self._mode,
             "paused": self._paused,
-            "queue_depth": self._fifo_queue.qsize() if self._mode == "fifo" else len(self._vote_buffer),
+            "queue_depth": self._fifo_queue.qsize()
+            if self._mode == "fifo"
+            else len(self._vote_buffer),
         }
         if self._mode == "vote":
             elapsed = time.monotonic() - self._vote_window_start

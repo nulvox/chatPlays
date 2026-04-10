@@ -14,6 +14,7 @@ from queue_engine import QueueEngine
 
 # ── Minimal config stubs ───────────────────────────────────────────────────────
 
+
 @dataclass
 class _DiscordCfg:
     command_prefix: str = "!"
@@ -43,10 +44,10 @@ class _CtrlCfg:
 
 @dataclass
 class _Cfg:
-    discord: _DiscordCfg = None  # type: ignore[assignment]
-    queue: _QueueCfg = None  # type: ignore[assignment]
-    rate_limit: _RLCfg = None  # type: ignore[assignment]
-    controller: _CtrlCfg = None  # type: ignore[assignment]
+    discord: _DiscordCfg = None  # type: ignore
+    queue: _QueueCfg = None  # type: ignore
+    rate_limit: _RLCfg = None  # type: ignore
+    controller: _CtrlCfg = None  # type: ignore
 
     def __post_init__(self) -> None:
         if self.discord is None:
@@ -59,17 +60,20 @@ class _Cfg:
             self.controller = _CtrlCfg()
 
 
-def make_engine(mode: Literal["fifo", "vote"] = "fifo", max_depth: int = 5) -> tuple[QueueEngine, AsyncMock]:
+def make_engine(
+    mode: Literal["fifo", "vote"] = "fifo", max_depth: int = 5
+) -> tuple[QueueEngine, AsyncMock]:
     cfg = _Cfg(queue=_QueueCfg(mode=mode, max_depth=max_depth))
     mock_ctrl = AsyncMock()
     mock_ctrl.press = AsyncMock()
     mock_ctrl.release = AsyncMock()
     mock_ctrl.cleanup = AsyncMock()
-    engine = QueueEngine(cfg, mock_ctrl)  # type: ignore[arg-type]
+    engine = QueueEngine(cfg, mock_ctrl)  # type: ignore
     return engine, mock_ctrl
 
 
 # ── Tests ──────────────────────────────────────────────────────────────────────
+
 
 class TestFifoMode:
     @pytest.mark.asyncio
@@ -172,6 +176,7 @@ class TestModeSwitching:
 class TestTallyVotes:
     def test_single_entry(self):
         from queue_engine import QueueEngine
+
         buf = [(0.0, ButtonInput(Button.A, 100))]
         result = QueueEngine._tally_votes(buf)
         assert result is not None

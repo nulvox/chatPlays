@@ -80,17 +80,13 @@ class TestMissingFields:
             load_config(p)
 
     def test_missing_channel_id(self, tmp_path):
-        toml = "\n".join(
-            line for line in VALID_TOML.splitlines() if "channel_id" not in line
-        )
+        toml = "\n".join(line for line in VALID_TOML.splitlines() if "channel_id" not in line)
         p = write_config(tmp_path, toml)
         with pytest.raises(ConfigError, match="channel_id"):
             load_config(p)
 
     def test_missing_mode(self, tmp_path):
-        toml = "\n".join(
-            line for line in VALID_TOML.splitlines() if "mode" not in line
-        )
+        toml = "\n".join(line for line in VALID_TOML.splitlines() if "mode" not in line)
         p = write_config(tmp_path, toml)
         with pytest.raises(ConfigError, match="mode"):
             load_config(p)
