@@ -145,6 +145,40 @@ def _canonical(steps: tuple[Step, ...]) -> str:
     return " ".join(parts)
 
 
+# ── Numpad notation ───────────────────────────────────────────────────────────
+# Standard fighting game numpad layout (imagine a number pad):
+#   7=UL  8=U  9=UR
+#   4=L   5=N  6=R
+#   1=DL  2=D  3=DR
+
+_NUMPAD_DIRECTIONS: dict[str, tuple[str, ...]] = {
+    "1": ("down", "left"),
+    "2": ("down",),
+    "3": ("down", "right"),
+    "4": ("left",),
+    "5": (),  # neutral — no direction
+    "6": ("right",),
+    "7": ("up", "left"),
+    "8": ("up",),
+    "9": ("up", "right"),
+}
+
+
+def _expand_numpad(sub_tokens: list[str]) -> list[str]:
+    """Expand numpad digits into d-pad button names within a chord's sub-tokens."""
+    expanded: list[str] = []
+    for st in sub_tokens:
+        # Check for numpad with optional :hold suffix
+        base = st.split(":")[0] if ":" in st else st
+        if base in _NUMPAD_DIRECTIONS:
+            suffix = st[len(base) :] if ":" in st else ""  # e.g. ":500"
+            dirs = _NUMPAD_DIRECTIONS[base]
+            expanded.extend(d + suffix for d in dirs)
+        else:
+            expanded.append(st)
+    return expanded
+
+
 # ── Parsing ───────────────────────────────────────────────────────────────────
 
 
@@ -198,8 +232,8 @@ def _parse_step(token: str, default_hold_ms: int) -> Step | None:
             return None
         return WaitStep(wait_ms=ms)
 
-    # Chord: a+b or a:500+lx:70
-    sub_tokens = token.split("+")
+    # Chord: a+b or a:500+lx:70 or 3+a (numpad)
+    sub_tokens = _expand_numpad(token.split("+"))
     buttons: list[ButtonInput] = []
     axes: list[AxisInput] = []
 
@@ -215,6 +249,7 @@ def _parse_step(token: str, default_hold_ms: int) -> Step | None:
         else:
             axes.append(result)
 
+    # 5 (neutral) expands to no buttons — valid as a no-op step in sequences
     if not buttons and not axes:
         return None
 

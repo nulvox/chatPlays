@@ -77,7 +77,19 @@ DISCORD_TOKEN=your-bot-token-here
 DISCORD_CHANNEL_ID=123456789012345678
 ```
 
-The `.env` file is loaded automatically by `uv run` and is already in `.gitignore` so your credentials stay out of version control. You can also export these variables directly in your shell if you prefer.
+The `.env` file is already in `.gitignore` so your credentials stay out of version control. Pass it to `uv run` with the `--env-file` flag:
+
+```bash
+uv run --env-file .env chatplays
+```
+
+To avoid typing the flag every time, export it in your shell profile:
+
+```bash
+export UV_ENV_FILE=.env
+```
+
+You can also `source .env` or export the variables directly if you prefer.
 
 > **Note:** The same values can be set in `config.toml` under `[discord].token` and `[discord].channel_id`, but `.env` is the recommended approach — it keeps secrets out of config files entirely.
 
@@ -86,19 +98,19 @@ The `.env` file is loaded automatically by `uv run` and is already in `.gitignor
 ## Running
 
 ```bash
-uv run chatplays
+uv run --env-file .env chatplays
 ```
 
 Or run the module directly:
 
 ```bash
-uv run python main.py
+uv run --env-file .env python main.py
 ```
 
 Set `LOG_LEVEL=DEBUG` for verbose output:
 
 ```bash
-LOG_LEVEL=DEBUG uv run chatplays
+LOG_LEVEL=DEBUG uv run --env-file .env chatplays
 ```
 
 ---
@@ -160,6 +172,7 @@ The full syntax supports sequences, chords, custom timing, and analog sticks. Se
 !a+b          Press A and B simultaneously
 !a:500        Hold A for 500ms
 !down right a Three-step sequence
+!2 3 6 a      Same as above in numpad notation
 !a ~200 b     Press A, wait 200ms, press B
 !lx:70+ly:-70 Left stick diagonal
 ```

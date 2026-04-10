@@ -125,12 +125,56 @@ Note: `!ls` and `!rs` click the stick buttons (L3/R3). They do not move the stic
 
 ---
 
+## Numpad Notation
+
+Fighting games use numpad notation to describe directions concisely. The digits 1–9 map to d-pad directions based on their position on a number pad:
+
+```
+7=↖  8=↑  9=↗
+4=←  5=N  6=→
+1=↙  2=↓  3=↘
+```
+
+| Numpad | Direction | Equivalent |
+|---|---|---|
+| `2` | Down | `down` |
+| `8` | Up | `up` |
+| `4` | Left | `left` |
+| `6` | Right | `right` |
+| `1` | Down-Left | `down+left` |
+| `3` | Down-Right | `down+right` |
+| `7` | Up-Left | `up+left` |
+| `9` | Up-Right | `up+right` |
+| `5` | Neutral (no direction) | — |
+
+Diagonals expand into simultaneous d-pad presses. `5` is neutral — it produces no directional input (useful in chords like `5+a` to press A with no direction held).
+
+Numpad digits support hold durations and work inside chords:
+
+```
+!2:500          Hold down for 500ms
+!3+a            Down-right + A (three buttons pressed simultaneously)
+!2 3 6 a        Hadouken: down, down-right, right, punch
+!4:2000 6+b     Charge move: hold left 2s, then right+kick
+```
+
+The named directions (`up`, `down`, `left`, `right`) still work and produce identical results:
+
+```
+!2              Same as !down
+!3              Same as !down+right
+!down+right     Same as !3
+```
+
+---
+
 ## Fighting Game Examples
 
 ### Hadouken (Quarter Circle Forward + Punch)
 
 ```
 !down down+right right a
+!2 3 6 a                    ← same thing in numpad notation
 ```
 
 Four steps: down, down+right diagonal, right, then punch.
@@ -139,12 +183,14 @@ Four steps: down, down+right diagonal, right, then punch.
 
 ```
 !right down down+right a
+!6 2 3 a                    ← numpad notation
 ```
 
 ### Charge Move (Hold Back, then Forward + Kick)
 
 ```
 !left:2000 right+b
+!4:2000 6+b                 ← numpad notation
 ```
 
 Hold left (back) for 2 seconds, then forward + B.

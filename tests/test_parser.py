@@ -390,3 +390,120 @@ class TestTimesharing:
         # If even the first step exceeds the limit, nothing to truncate
         result = parse_command("!a+b+x", PREFIX, DEFAULT_HOLD, max_keypresses=2)
         assert result is None
+
+
+# ── Numpad notation ──────────────────────────────────────────────────────────
+
+
+class TestNumpad:
+    def test_cardinal_directions(self):
+        for num, btn in [
+            ("2", Button.DOWN),
+            ("8", Button.UP),
+            ("4", Button.LEFT),
+            ("6", Button.RIGHT),
+        ]:
+            result = parse(f"!{num}")
+            assert result is not None, f"!{num} should parse"
+            step = result.steps[0]
+            assert isinstance(step, ChordStep)
+            assert len(step.buttons) == 1
+            assert step.buttons[0].button == btn
+
+    def test_diagonal_down_right(self):
+        result = parse("!3")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        buttons = {b.button for b in step.buttons}
+        assert buttons == {Button.DOWN, Button.RIGHT}
+
+    def test_diagonal_up_left(self):
+        result = parse("!7")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        buttons = {b.button for b in step.buttons}
+        assert buttons == {Button.UP, Button.LEFT}
+
+    def test_diagonal_down_left(self):
+        result = parse("!1")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        buttons = {b.button for b in step.buttons}
+        assert buttons == {Button.DOWN, Button.LEFT}
+
+    def test_diagonal_up_right(self):
+        result = parse("!9")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        buttons = {b.button for b in step.buttons}
+        assert buttons == {Button.UP, Button.RIGHT}
+
+    def test_neutral_5_returns_none(self):
+        # 5 alone has no buttons — produces None (no-op)
+        assert parse("!5") is None
+
+    def test_5_with_button(self):
+        # 5+a means press A with no direction
+        result = parse("!5+a")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        assert len(step.buttons) == 1
+        assert step.buttons[0].button == Button.A
+
+    def test_numpad_with_hold(self):
+        result = parse("!2:500")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        assert step.buttons[0].button == Button.DOWN
+        assert step.buttons[0].hold_ms == 500
+
+    def test_diagonal_with_hold(self):
+        result = parse("!3:200")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        # Both buttons in the diagonal get the hold duration
+        for b in step.buttons:
+            assert b.hold_ms == 200
+        buttons = {b.button for b in step.buttons}
+        assert buttons == {Button.DOWN, Button.RIGHT}
+
+    def test_numpad_in_chord(self):
+        result = parse("!3+a")
+        assert result is not None
+        step = result.steps[0]
+        assert isinstance(step, ChordStep)
+        buttons = {b.button for b in step.buttons}
+        assert buttons == {Button.DOWN, Button.RIGHT, Button.A}
+
+    def test_numpad_sequence(self):
+        # Hadouken: 2 3 6 a (down, down-right, right, punch)
+        result = parse("!2 3 6 a")
+        assert result is not None
+        assert len(result.steps) == 4
+
+    def test_old_names_still_work(self):
+        # Ensure up/down/left/right still work alongside numpad
+        for name in ("up", "down", "left", "right"):
+            result = parse(f"!{name}")
+            assert result is not None
+
+    def test_numpad_canonical_matches_named(self):
+        # !2 and !down should produce the same canonical form
+        r1 = parse("!2")
+        r2 = parse("!down")
+        assert r1 is not None and r2 is not None
+        assert r1.canonical == r2.canonical
+
+    def test_diagonal_canonical_matches_chord(self):
+        # !3 and !down+right should produce the same canonical
+        r1 = parse("!3")
+        r2 = parse("!down+right")
+        assert r1 is not None and r2 is not None
+        assert r1.canonical == r2.canonical
