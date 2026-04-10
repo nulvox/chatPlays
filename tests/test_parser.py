@@ -1,6 +1,5 @@
 """Tests for parser.py."""
 
-
 from parser import Button, ButtonInput, parse_command
 
 PREFIX = "!"

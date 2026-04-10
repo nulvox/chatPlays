@@ -25,4 +25,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
-      - run: pytest
+      - run: pytest --cov --cov-report=term-missing --cov-fail-under=80

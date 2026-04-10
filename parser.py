@@ -58,7 +58,7 @@ def parse_command(raw: str, prefix: str, default_hold_ms: int) -> ButtonInput | 
     if not raw.startswith(prefix):
         return None
 
-    body = raw[len(prefix):].strip()
+    body = raw[len(prefix) :].strip()
     if not body:
         return None
 

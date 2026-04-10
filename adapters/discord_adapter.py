@@ -47,7 +47,7 @@ class DiscordAdapter(ChatAdapter):
         self._window_counts: dict[str, tuple[float, int]] = {}
 
         intents = discord.Intents.default()
-        intents.messages = True         # Receive message events in guilds
+        intents.messages = True  # Receive message events in guilds
         intents.message_content = True  # Privileged intent — must be enabled in dev portal
 
         self._client = discord.Client(intents=intents)
@@ -59,7 +59,9 @@ class DiscordAdapter(ChatAdapter):
 
         @client.event
         async def on_ready() -> None:
-            log.info("Discord bot ready: %s (id=%s)", client.user, client.user.id if client.user else "?")
+            log.info(
+                "Discord bot ready: %s (id=%s)", client.user, client.user.id if client.user else "?"
+            )
             for guild in client.guilds:
                 log.info("In guild: %s (id=%s)", guild.name, guild.id)
                 for channel in guild.text_channels:
@@ -75,10 +77,19 @@ class DiscordAdapter(ChatAdapter):
 
         @client.event
         async def on_message(message: discord.Message) -> None:
-            log.info("on_message: channel=%s author=%s content=%r", message.channel.id, message.author, message.content)
+            log.info(
+                "on_message: channel=%s author=%s content=%r",
+                message.channel.id,
+                message.author,
+                message.content,
+            )
             # Ignore messages outside the designated channel
             if message.channel.id != config.discord.channel_id:
-                log.info("Ignoring message from channel %s (expected %s)", message.channel.id, config.discord.channel_id)
+                log.info(
+                    "Ignoring message from channel %s (expected %s)",
+                    message.channel.id,
+                    config.discord.channel_id,
+                )
                 return
             # Ignore bot's own messages
             if message.author.bot:
@@ -91,7 +102,7 @@ class DiscordAdapter(ChatAdapter):
             if not content.startswith(prefix):
                 return
 
-            body = content[len(prefix):].strip().lower()
+            body = content[len(prefix) :].strip().lower()
 
             # ── Operator commands ─────────────────────────────────────────────
             if body.startswith("mode "):
@@ -149,14 +160,14 @@ class DiscordAdapter(ChatAdapter):
 
     async def _handle_mode(self, message: discord.Message, mode_str: str) -> None:
         if not self._is_operator(message.author):
-            log.info(
-                "Non-operator mode change attempt: user=%s", message.author.id
-            )
+            log.info("Non-operator mode change attempt: user=%s", message.author.id)
             return
         if mode_str not in ("fifo", "vote"):
-            await message.channel.send(f"Unknown mode '{mode_str}'. Use: `!mode fifo` or `!mode vote`")
+            await message.channel.send(
+                f"Unknown mode '{mode_str}'. Use: `!mode fifo` or `!mode vote`"
+            )
             return
-        self._queue_engine.set_mode(mode_str)  # type: ignore[arg-type]
+        self._queue_engine.set_mode(mode_str)  # type: ignore
         log.info("Operator %s switched mode to %s", message.author.id, mode_str)
         await message.channel.send(f"Mode switched to **{mode_str}**")
 

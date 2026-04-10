@@ -39,8 +39,9 @@ _BUS_USB = 0x03
 @dataclass(frozen=True)
 class _AxisPress:
     """D-pad press encoded as an absolute axis event."""
-    axis: tuple[int, int]   # e.g. uinput.ABS_HAT0X
-    value: int              # -1, 0, or 1
+
+    axis: tuple[int, int]  # e.g. uinput.ABS_HAT0X
+    value: int  # -1, 0, or 1
 
 
 # Built lazily after uinput is imported
@@ -49,7 +50,7 @@ _DPAD_MAP: dict[Button, _AxisPress] = {}
 
 
 def _build_maps() -> tuple[dict[Button, tuple[int, int]], dict[Button, _AxisPress]]:
-    import uinput  # type: ignore[import-untyped]
+    import uinput
 
     buttons = {
         Button.A: uinput.BTN_A,
@@ -70,10 +71,10 @@ def _build_maps() -> tuple[dict[Button, tuple[int, int]], dict[Button, _AxisPres
     # D-pad is ABS_HAT0X (left/right) and ABS_HAT0Y (up/down).
     # Y axis: -1 = up, +1 = down  (standard Linux HAT convention)
     dpad = {
-        Button.UP:    _AxisPress(uinput.ABS_HAT0Y, -1),
-        Button.DOWN:  _AxisPress(uinput.ABS_HAT0Y,  1),
-        Button.LEFT:  _AxisPress(uinput.ABS_HAT0X, -1),
-        Button.RIGHT: _AxisPress(uinput.ABS_HAT0X,  1),
+        Button.UP: _AxisPress(uinput.ABS_HAT0Y, -1),
+        Button.DOWN: _AxisPress(uinput.ABS_HAT0Y, 1),
+        Button.LEFT: _AxisPress(uinput.ABS_HAT0X, -1),
+        Button.RIGHT: _AxisPress(uinput.ABS_HAT0X, 1),
     }
 
     return buttons, dpad
@@ -94,11 +95,10 @@ class LinuxController(VirtualController):
             return
 
         try:
-            import uinput  # type: ignore[import-untyped]
+            import uinput
         except ImportError as exc:
             raise RuntimeError(
-                "python-uinput is not installed. "
-                "Install it with: pip install python-uinput"
+                "python-uinput is not installed. Install it with: pip install python-uinput"
             ) from exc
 
         self._button_map, self._dpad_map = _build_maps()
@@ -106,22 +106,19 @@ class LinuxController(VirtualController):
         # Register the full Xbox 360 axis profile so Steam recognises the device
         # correctly. Sticks and triggers are registered but held at zero — only
         # the HAT axes are driven by d-pad commands.
-        stick_spec = (-32768, 32767, 16, 128)   # (min, max, fuzz, flat)
+        stick_spec = (-32768, 32767, 16, 128)  # (min, max, fuzz, flat)
         trigger_spec = (0, 255, 0, 0)
         hat_spec = (-1, 1, 0, 0)
-        events = (
-            list(self._button_map.values())
-            + [
-                uinput.ABS_X    + stick_spec,
-                uinput.ABS_Y    + stick_spec,
-                uinput.ABS_Z    + trigger_spec,
-                uinput.ABS_RX   + stick_spec,
-                uinput.ABS_RY   + stick_spec,
-                uinput.ABS_RZ   + trigger_spec,
-                uinput.ABS_HAT0X + hat_spec,
-                uinput.ABS_HAT0Y + hat_spec,
-            ]
-        )
+        events = list(self._button_map.values()) + [
+            uinput.ABS_X + stick_spec,
+            uinput.ABS_Y + stick_spec,
+            uinput.ABS_Z + trigger_spec,
+            uinput.ABS_RX + stick_spec,
+            uinput.ABS_RY + stick_spec,
+            uinput.ABS_RZ + trigger_spec,
+            uinput.ABS_HAT0X + hat_spec,
+            uinput.ABS_HAT0Y + hat_spec,
+        ]
 
         try:
             self._device = uinput.Device(
@@ -143,7 +140,8 @@ class LinuxController(VirtualController):
 
         log.info(
             "uinput device created: Microsoft X-Box 360 pad (%04x:%04x)",
-            _VENDOR_ID, _PRODUCT_ID,
+            _VENDOR_ID,
+            _PRODUCT_ID,
         )
 
     async def press(self, button: ButtonInput) -> None:
@@ -163,15 +161,15 @@ class LinuxController(VirtualController):
 
     def _emit_button_press(self, event: tuple[int, int], hold_s: float) -> None:
         assert self._device is not None
-        self._device.emit(event, 1)  # type: ignore[union-attr]
+        self._device.emit(event, 1)  # type: ignore
         time.sleep(hold_s)
-        self._device.emit(event, 0)  # type: ignore[union-attr]
+        self._device.emit(event, 0)  # type: ignore
 
     def _emit_axis_press(self, ap: _AxisPress, hold_s: float) -> None:
         assert self._device is not None
-        self._device.emit(ap.axis, ap.value)   # type: ignore[union-attr]
+        self._device.emit(ap.axis, ap.value)  # type: ignore
         time.sleep(hold_s)
-        self._device.emit(ap.axis, 0)          # type: ignore[union-attr]  # return to centre
+        self._device.emit(ap.axis, 0)  # type: ignore  # return to centre
 
     async def release(self, button: ButtonInput) -> None:
         """Explicitly release a button or centre an axis."""
@@ -179,16 +177,16 @@ class LinuxController(VirtualController):
         if button.button in self._dpad_map:
             ap = self._dpad_map[button.button]
             assert self._device is not None
-            await asyncio.to_thread(self._device.emit, ap.axis, 0)  # type: ignore[union-attr]
+            await asyncio.to_thread(self._device.emit, ap.axis, 0)  # type: ignore
         elif button.button in self._button_map:
             event = self._button_map[button.button]
             assert self._device is not None
-            await asyncio.to_thread(self._device.emit, event, 0)  # type: ignore[union-attr]
+            await asyncio.to_thread(self._device.emit, event, 0)  # type: ignore
 
     async def cleanup(self) -> None:
         """Destroy the uinput device."""
         if self._device is not None:
             with contextlib.suppress(Exception):
-                self._device.__del__()  # type: ignore[union-attr]
+                self._device.__del__()  # type: ignore
             self._device = None
             log.info("uinput device destroyed")

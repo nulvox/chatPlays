@@ -41,7 +41,9 @@ class WindowsController(VirtualController):
         )
 
     async def press(self, button: ButtonInput) -> None:
-        log.warning("[stub] press %s (%dms) — no-op on Windows stub", button.button.value, button.hold_ms)
+        log.warning(
+            "[stub] press %s (%dms) — no-op on Windows stub", button.button.value, button.hold_ms
+        )
 
     async def release(self, button: ButtonInput) -> None:
         log.warning("[stub] release %s — no-op on Windows stub", button.button.value)
