@@ -101,6 +101,7 @@ class LinuxController(VirtualController):
 
     def __init__(self, config: Config) -> None:
         self._press_duration_ms = config.controller.press_duration_ms
+        self._device_index = config.controller.device_index
         self._device: object | None = None
         self._button_map: dict[Button, tuple[int, int]] = {}
         self._dpad_map: dict[Button, _AxisPress] = {}
@@ -137,14 +138,23 @@ class LinuxController(VirtualController):
             uinput.ABS_HAT0Y + hat_spec,
         ]
 
+        # Use device_index to differentiate multiple instances. Index 0 keeps
+        # the standard name/version so a single-instance setup is unchanged.
+        if self._device_index:
+            device_name = f"Microsoft X-Box 360 pad #{self._device_index + 1}"
+            device_version = 0x0114 + self._device_index
+        else:
+            device_name = "Microsoft X-Box 360 pad"
+            device_version = 0x0114
+
         try:
             self._device = uinput.Device(
                 events,
-                name="Microsoft X-Box 360 pad",
+                name=device_name,
                 bustype=_BUS_USB,
                 vendor=_VENDOR_ID,
                 product=_PRODUCT_ID,
-                version=0x0114,
+                version=device_version,
             )
         except Exception as exc:
             raise RuntimeError(

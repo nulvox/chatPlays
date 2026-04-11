@@ -36,6 +36,7 @@ class RateLimitConfig:
 class ControllerConfig:
     press_duration_ms: int
     platform: Literal["auto", "linux", "windows"]
+    device_index: int = 0
     max_hold_ms: int = 5000
     max_sequence_steps: int = 20
     max_total_duration_ms: int = 10000
@@ -149,6 +150,7 @@ def load_config(path: str | Path = "config.toml") -> Config:
         )
     platform: Literal["auto", "linux", "windows"] = platform_raw  # type: ignore
 
+    device_index = int(ctrl_raw.get("device_index", 0))
     max_hold_ms = int(ctrl_raw.get("max_hold_ms", 5000))
     max_sequence_steps = int(ctrl_raw.get("max_sequence_steps", 20))
     max_total_duration_ms = int(ctrl_raw.get("max_total_duration_ms", 10000))
@@ -156,6 +158,7 @@ def load_config(path: str | Path = "config.toml") -> Config:
     controller_cfg = ControllerConfig(
         press_duration_ms=press_duration_ms,
         platform=platform,
+        device_index=device_index,
         max_hold_ms=max_hold_ms,
         max_sequence_steps=max_sequence_steps,
         max_total_duration_ms=max_total_duration_ms,
