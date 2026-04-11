@@ -68,16 +68,15 @@ def _build_maps() -> tuple[
         Button.GUIDE: uinput.BTN_MODE,
         Button.LS: uinput.BTN_THUMBL,
         Button.RS: uinput.BTN_THUMBR,
+        Button.UP: uinput.BTN_DPAD_UP,
+        Button.DOWN: uinput.BTN_DPAD_DOWN,
+        Button.LEFT: uinput.BTN_DPAD_LEFT,
+        Button.RIGHT: uinput.BTN_DPAD_RIGHT,
     }
 
-    # D-pad is ABS_HAT0X (left/right) and ABS_HAT0Y (up/down).
-    # Y axis: -1 = up, +1 = down  (standard Linux HAT convention)
-    dpad = {
-        Button.UP: _AxisPress(uinput.ABS_HAT0Y, -1),
-        Button.DOWN: _AxisPress(uinput.ABS_HAT0Y, 1),
-        Button.LEFT: _AxisPress(uinput.ABS_HAT0X, -1),
-        Button.RIGHT: _AxisPress(uinput.ABS_HAT0X, 1),
-    }
+    # D-pad as digital buttons (BTN_DPAD_*) rather than HAT axes for
+    # better compatibility with Steam Input.
+    dpad: dict[Button, _AxisPress] = {}
 
     stick_axes = {
         Axis.LX: uinput.ABS_X,
@@ -101,10 +100,12 @@ class LinuxController(VirtualController):
 
     def __init__(self, config: Config) -> None:
         self._press_duration_ms = config.controller.press_duration_ms
+        self._device_index = config.controller.device_index
         self._device: object | None = None
         self._button_map: dict[Button, tuple[int, int]] = {}
         self._dpad_map: dict[Button, _AxisPress] = {}
         self._stick_axis_map: dict[Axis, tuple[int, int]] = {}
+        self._ensure_device()
 
     def _ensure_device(self) -> None:
         """Lazily create the uinput device on first use."""
@@ -125,7 +126,6 @@ class LinuxController(VirtualController):
         # the HAT axes are driven by d-pad commands.
         stick_spec = (-32768, 32767, 16, 128)  # (min, max, fuzz, flat)
         trigger_spec = (0, 255, 0, 0)
-        hat_spec = (-1, 1, 0, 0)
         events = list(self._button_map.values()) + [
             uinput.ABS_X + stick_spec,
             uinput.ABS_Y + stick_spec,
@@ -133,18 +133,25 @@ class LinuxController(VirtualController):
             uinput.ABS_RX + stick_spec,
             uinput.ABS_RY + stick_spec,
             uinput.ABS_RZ + trigger_spec,
-            uinput.ABS_HAT0X + hat_spec,
-            uinput.ABS_HAT0Y + hat_spec,
         ]
+
+        # Use device_index to differentiate multiple instances. Index 0 keeps
+        # the standard name/version so a single-instance setup is unchanged.
+        if self._device_index:
+            device_name = f"Microsoft X-Box 360 pad #{self._device_index + 1}"
+            device_version = 0x0114 + self._device_index
+        else:
+            device_name = "Microsoft X-Box 360 pad"
+            device_version = 0x0114
 
         try:
             self._device = uinput.Device(
                 events,
-                name="Microsoft X-Box 360 pad",
+                name=device_name,
                 bustype=_BUS_USB,
                 vendor=_VENDOR_ID,
                 product=_PRODUCT_ID,
-                version=0x0114,
+                version=device_version,
             )
         except Exception as exc:
             raise RuntimeError(
@@ -168,9 +175,11 @@ class LinuxController(VirtualController):
         assert self._device is not None
         if button in self._dpad_map:
             ap = self._dpad_map[button]
+            log.debug("emit dpad press: axis=%s value=%d", ap.axis, ap.value)
             await asyncio.to_thread(self._device.emit, ap.axis, ap.value)  # type: ignore
         elif button in self._button_map:
             event = self._button_map[button]
+            log.debug("emit button press: %s event=%s", button, event)
             await asyncio.to_thread(self._device.emit, event, 1)  # type: ignore
         else:
             log.warning("No uinput mapping for button %s", button)
@@ -180,9 +189,11 @@ class LinuxController(VirtualController):
         assert self._device is not None
         if button in self._dpad_map:
             ap = self._dpad_map[button]
+            log.debug("emit dpad release: axis=%s value=0", ap.axis)
             await asyncio.to_thread(self._device.emit, ap.axis, 0)  # type: ignore
         elif button in self._button_map:
             event = self._button_map[button]
+            log.debug("emit button release: %s event=%s", button, event)
             await asyncio.to_thread(self._device.emit, event, 0)  # type: ignore
 
     async def set_axis(self, axis: Axis, value: int) -> None:
@@ -193,6 +204,7 @@ class LinuxController(VirtualController):
             return
         uinput_axis = self._stick_axis_map[axis]
         raw = _scale_axis(value)
+        log.debug("emit axis: %s uinput=%s raw=%d", axis, uinput_axis, raw)
         await asyncio.to_thread(self._device.emit, uinput_axis, raw)  # type: ignore
 
     async def cleanup(self) -> None:

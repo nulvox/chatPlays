@@ -30,8 +30,8 @@ def _configure_logging() -> None:
     )
 
 
-async def _run() -> None:
-    config = load_config()
+async def _run(config_path: str) -> None:
+    config = load_config(config_path)
     set_limits(
         max_hold_ms=config.controller.max_hold_ms,
         max_steps=config.controller.max_sequence_steps,
@@ -89,8 +89,10 @@ def main() -> None:
     _configure_logging()
     log = logging.getLogger(__name__)
 
+    config_path = sys.argv[1] if len(sys.argv) > 1 else "config.toml"
+
     try:
-        asyncio.run(_run())
+        asyncio.run(_run(config_path))
     except ConfigError as exc:
         log.error("Configuration error: %s", exc)
         sys.exit(1)

@@ -33,6 +33,9 @@ max_per_window = 3
 press_duration_ms = 100
 # Platform selection: "auto" detects OS; "linux" or "windows" forces a specific backend.
 platform = "auto"
+# Device index for running multiple instances. Each instance needs a unique index
+# (0, 1, 2, ...) so the OS registers them as separate controllers.
+# device_index = 0
 # Maximum hold duration for a single button press (milliseconds).
 # max_hold_ms = 5000
 # Maximum number of steps (chords + waits) allowed in one command.

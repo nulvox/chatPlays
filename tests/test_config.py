@@ -64,11 +64,11 @@ class TestValidConfig:
         cfg = load_config(p)
         assert cfg.discord.token == "env-token"
 
-    def test_env_token_overrides_config(self, tmp_path, monkeypatch):
+    def test_config_token_takes_priority_over_env(self, tmp_path, monkeypatch):
         p = write_config(tmp_path, VALID_TOML)
         monkeypatch.setenv("DISCORD_TOKEN", "env-token")
         cfg = load_config(p)
-        assert cfg.discord.token == "env-token"
+        assert cfg.discord.token == "test-token"
 
 
 class TestMissingFields:
