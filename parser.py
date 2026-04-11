@@ -64,6 +64,15 @@ class Axis(StrEnum):
 
 
 _BUTTON_LOOKUP: dict[str, Button] = {b.value: b for b in Button}
+# Fighting game aliases (6-button layout)
+_BUTTON_LOOKUP.update({
+    "lp": Button.X,
+    "mp": Button.Y,
+    "hp": Button.RB,
+    "lk": Button.A,
+    "mk": Button.B,
+    "hk": Button.RT,
+})
 _AXIS_LOOKUP: dict[str, Axis] = {a.value: a for a in Axis}
 
 
