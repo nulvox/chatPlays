@@ -73,6 +73,14 @@ _BUTTON_LOOKUP.update({
     "mk": Button.B,
     "hk": Button.RT,
 })
+# Guilty Gear aliases
+_BUTTON_LOOKUP.update({
+    "p": Button.X,
+    "k": Button.A,
+    "s": Button.Y,
+    "hs": Button.B,
+    "d": Button.RB,
+})
 _AXIS_LOOKUP: dict[str, Axis] = {a.value: a for a in Axis}
 
 
