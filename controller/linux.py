@@ -68,16 +68,15 @@ def _build_maps() -> tuple[
         Button.GUIDE: uinput.BTN_MODE,
         Button.LS: uinput.BTN_THUMBL,
         Button.RS: uinput.BTN_THUMBR,
+        Button.UP: uinput.BTN_DPAD_UP,
+        Button.DOWN: uinput.BTN_DPAD_DOWN,
+        Button.LEFT: uinput.BTN_DPAD_LEFT,
+        Button.RIGHT: uinput.BTN_DPAD_RIGHT,
     }
 
-    # D-pad is ABS_HAT0X (left/right) and ABS_HAT0Y (up/down).
-    # Y axis: -1 = up, +1 = down  (standard Linux HAT convention)
-    dpad = {
-        Button.UP: _AxisPress(uinput.ABS_HAT0Y, -1),
-        Button.DOWN: _AxisPress(uinput.ABS_HAT0Y, 1),
-        Button.LEFT: _AxisPress(uinput.ABS_HAT0X, -1),
-        Button.RIGHT: _AxisPress(uinput.ABS_HAT0X, 1),
-    }
+    # D-pad as digital buttons (BTN_DPAD_*) rather than HAT axes for
+    # better compatibility with Steam Input.
+    dpad: dict[Button, _AxisPress] = {}
 
     stick_axes = {
         Axis.LX: uinput.ABS_X,
@@ -127,7 +126,6 @@ class LinuxController(VirtualController):
         # the HAT axes are driven by d-pad commands.
         stick_spec = (-32768, 32767, 16, 128)  # (min, max, fuzz, flat)
         trigger_spec = (0, 255, 0, 0)
-        hat_spec = (-1, 1, 0, 0)
         events = list(self._button_map.values()) + [
             uinput.ABS_X + stick_spec,
             uinput.ABS_Y + stick_spec,
@@ -135,8 +133,6 @@ class LinuxController(VirtualController):
             uinput.ABS_RX + stick_spec,
             uinput.ABS_RY + stick_spec,
             uinput.ABS_RZ + trigger_spec,
-            uinput.ABS_HAT0X + hat_spec,
-            uinput.ABS_HAT0Y + hat_spec,
         ]
 
         # Use device_index to differentiate multiple instances. Index 0 keeps
