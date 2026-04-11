@@ -106,6 +106,7 @@ class LinuxController(VirtualController):
         self._button_map: dict[Button, tuple[int, int]] = {}
         self._dpad_map: dict[Button, _AxisPress] = {}
         self._stick_axis_map: dict[Axis, tuple[int, int]] = {}
+        self._ensure_device()
 
     def _ensure_device(self) -> None:
         """Lazily create the uinput device on first use."""
@@ -178,9 +179,11 @@ class LinuxController(VirtualController):
         assert self._device is not None
         if button in self._dpad_map:
             ap = self._dpad_map[button]
+            log.debug("emit dpad press: axis=%s value=%d", ap.axis, ap.value)
             await asyncio.to_thread(self._device.emit, ap.axis, ap.value)  # type: ignore
         elif button in self._button_map:
             event = self._button_map[button]
+            log.debug("emit button press: %s event=%s", button, event)
             await asyncio.to_thread(self._device.emit, event, 1)  # type: ignore
         else:
             log.warning("No uinput mapping for button %s", button)
@@ -190,9 +193,11 @@ class LinuxController(VirtualController):
         assert self._device is not None
         if button in self._dpad_map:
             ap = self._dpad_map[button]
+            log.debug("emit dpad release: axis=%s value=0", ap.axis)
             await asyncio.to_thread(self._device.emit, ap.axis, 0)  # type: ignore
         elif button in self._button_map:
             event = self._button_map[button]
+            log.debug("emit button release: %s event=%s", button, event)
             await asyncio.to_thread(self._device.emit, event, 0)  # type: ignore
 
     async def set_axis(self, axis: Axis, value: int) -> None:
@@ -203,6 +208,7 @@ class LinuxController(VirtualController):
             return
         uinput_axis = self._stick_axis_map[axis]
         raw = _scale_axis(value)
+        log.debug("emit axis: %s uinput=%s raw=%d", axis, uinput_axis, raw)
         await asyncio.to_thread(self._device.emit, uinput_axis, raw)  # type: ignore
 
     async def cleanup(self) -> None:

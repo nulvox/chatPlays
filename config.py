@@ -85,22 +85,30 @@ def load_config(path: str | Path = "config.toml") -> Config:
         raise ConfigError(f"Failed to parse {path}: {exc}") from exc
 
     # ── [discord] ──────────────────────────────────────────────────────────────
+    # Config file values take priority; env vars are fallbacks for when the
+    # config value is empty/default. This lets multiple instances run with
+    # different config files without env vars clobbering each one.
     disc_raw = raw.get("discord", {})
-    token: str = os.environ.get("DISCORD_TOKEN", "") or str(
-        _require(disc_raw, "token", str, "discord")
-    )
+    token_cfg = str(disc_raw.get("token", "")).strip()
+    token: str = token_cfg or os.environ.get("DISCORD_TOKEN", "")
     if not token:
         raise ConfigError(
             "[discord] 'token' is empty. Set it in config.toml or via DISCORD_TOKEN env var."
         )
-    channel_id_env = os.environ.get("DISCORD_CHANNEL_ID", "")
-    if channel_id_env:
-        try:
-            channel_id = int(channel_id_env)
-        except ValueError as exc:
-            raise ConfigError("DISCORD_CHANNEL_ID env var must be a valid integer.") from exc
+    channel_id_cfg = disc_raw.get("channel_id", 0)
+    if channel_id_cfg:
+        channel_id = int(channel_id_cfg)
     else:
-        channel_id = int(_require(disc_raw, "channel_id", int, "discord"))  # type: ignore
+        channel_id_env = os.environ.get("DISCORD_CHANNEL_ID", "")
+        if channel_id_env:
+            try:
+                channel_id = int(channel_id_env)
+            except ValueError as exc:
+                raise ConfigError("DISCORD_CHANNEL_ID env var must be a valid integer.") from exc
+        else:
+            raise ConfigError(
+                "[discord] 'channel_id' is 0/unset. Set it in config.toml or via DISCORD_CHANNEL_ID env var."
+            )
     command_prefix = str(_require(disc_raw, "command_prefix", str, "discord"))
 
     discord_cfg = DiscordConfig(
