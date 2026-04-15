@@ -14,3 +14,9 @@ venv/
 htmlcov/
 
 .claude/
+
+# Vagrant
+.vagrant/
+
+# uv
+uv.lock
