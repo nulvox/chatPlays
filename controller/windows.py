@@ -81,7 +81,10 @@ class WindowsController(VirtualController):
         # Track raw axis state so setting one axis of a pair doesn't clobber
         # the other (e.g. setting LX preserves the current LY value).
         self._axis_raw: dict[Axis, int] = {
-            Axis.LX: 0, Axis.LY: 0, Axis.RX: 0, Axis.RY: 0,
+            Axis.LX: 0,
+            Axis.LY: 0,
+            Axis.RX: 0,
+            Axis.RY: 0,
         }
 
         log.info("vgamepad device created: VX360Gamepad")
@@ -182,5 +185,5 @@ class WindowsController(VirtualController):
             self._pad.reset()
             self._pad.update()
             del self._pad
-            self._pad = None  # type: ignore[assignment]
+            self._pad = None  # type: ignore[assignment,unused-ignore]
             log.info("vgamepad device destroyed")

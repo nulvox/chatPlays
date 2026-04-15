@@ -9,14 +9,19 @@ lets PnP catch up.
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import dataclass
 from typing import Literal
 
 import pytest
 
+# Skip the entire directory when not running on Windows.
+if sys.platform != "win32":
+    pytest.skip("Windows-only tests (require vgamepad + ViGEmBus)", allow_module_level=True)
 
 # ── vgamepad Windows-Server PnP retry patch ─────────────────────────────────
+
 
 def _patch_vgamepad_retry() -> None:
     """Patch VGamepad.__init__ to retry vigem_target_add on PnP timing failures."""
@@ -31,13 +36,18 @@ def _patch_vgamepad_retry() -> None:
 
     _orig_init = vgmod.VGamepad.__init__
 
-    def _retrying_init(self):  # type: ignore[no-untyped-def]
+    def _retrying_init(self):
         self.vbus = vgmod.VBUS
         self._busp = self.vbus.get_busp()
         self._devicep = self.target_alloc()
         self.CMPFUNC = vgmod.CFUNCTYPE(
-            None, vgmod.c_void_p, vgmod.c_void_p,
-            vgmod.c_ubyte, vgmod.c_ubyte, vgmod.c_ubyte, vgmod.c_void_p,
+            None,
+            vgmod.c_void_p,
+            vgmod.c_void_p,
+            vgmod.c_ubyte,
+            vgmod.c_ubyte,
+            vgmod.c_ubyte,
+            vgmod.c_void_p,
         )
         self.cmp_func = None
 
@@ -56,7 +66,7 @@ def _patch_vgamepad_retry() -> None:
             "The virtual device could not connect to ViGEmBus."
         )
 
-    vgmod.VGamepad.__init__ = _retrying_init  # type: ignore[assignment]
+    vgmod.VGamepad.__init__ = _retrying_init
 
 
 _patch_vgamepad_retry()
@@ -96,10 +106,10 @@ class _RLCfg:
 
 @dataclass
 class _Cfg:
-    discord: _DiscordCfg = None  # type: ignore
-    queue: _QueueCfg = None  # type: ignore
-    rate_limit: _RLCfg = None  # type: ignore
-    controller: _ControllerConfig = None  # type: ignore
+    discord: _DiscordCfg = None  # type: ignore[assignment,unused-ignore]
+    queue: _QueueCfg = None  # type: ignore[assignment,unused-ignore]
+    rate_limit: _RLCfg = None  # type: ignore[assignment,unused-ignore]
+    controller: _ControllerConfig = None  # type: ignore[assignment,unused-ignore]
 
     def __post_init__(self) -> None:
         if self.discord is None:

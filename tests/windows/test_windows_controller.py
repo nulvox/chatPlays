@@ -32,8 +32,12 @@ def _seq_button(button: Button, hold_ms: int = 100) -> Sequence:
     return Sequence(steps=(step,), canonical=f"{button.value}:{hold_ms}")
 
 
-def _seq_chord(buttons: list[tuple[Button, int]], axes: list[tuple[Axis, int]] = ()) -> Sequence:
+def _seq_chord(
+    buttons: list[tuple[Button, int]], axes: list[tuple[Axis, int]] | None = None
+) -> Sequence:
     """Build a chord Sequence with multiple buttons and optional axes."""
+    if axes is None:
+        axes = []
     btn_inputs = tuple(ButtonInput(b, h) for b, h in buttons)
     axis_inputs = tuple(AxisInput(a, v) for a, v in axes)
     step = ChordStep(buttons=btn_inputs, axes=axis_inputs)
@@ -333,7 +337,7 @@ class TestTiming:
         from controller.windows import WindowsController
 
         cfg = _Cfg200()
-        ctrl = WindowsController(cfg)
+        ctrl = WindowsController(cfg)  # type: ignore[arg-type]
         try:
             step = ChordStep(buttons=(ButtonInput(Button.A, 0),), axes=())
             seq = Sequence(steps=(step,), canonical="a:0")
@@ -360,7 +364,7 @@ class TestTiming:
         from controller.windows import WindowsController
 
         cfg = _Cfg200()
-        ctrl = WindowsController(cfg)
+        ctrl = WindowsController(cfg)  # type: ignore[arg-type]
         try:
             step = ChordStep(buttons=(), axes=(AxisInput(Axis.LX, 70),))
             seq = Sequence(steps=(step,), canonical="lx:70")
