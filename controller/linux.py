@@ -29,9 +29,11 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Xbox 360 controller USB IDs
+# USB IDs for the virtual controller.  We keep Microsoft's vendor ID so Steam
+# recognises the device as an Xbox-family controller, but use a distinct
+# product ID (0xF100) to avoid confusion with real Xbox 360 pads (0x028E).
 _VENDOR_ID = 0x045E
-_PRODUCT_ID = 0x028E
+_PRODUCT_ID = 0xF100
 _BUS_USB = 0x03
 
 
@@ -135,13 +137,12 @@ class LinuxController(VirtualController):
             uinput.ABS_RZ + trigger_spec,
         ]
 
-        # Use device_index to differentiate multiple instances. Index 0 keeps
-        # the standard name/version so a single-instance setup is unchanged.
+        # Use device_index to differentiate multiple instances.
         if self._device_index:
-            device_name = f"Microsoft X-Box 360 pad #{self._device_index + 1}"
+            device_name = f"chatPlays Virtual Gamepad #{self._device_index + 1}"
             device_version = 0x0114 + self._device_index
         else:
-            device_name = "Microsoft X-Box 360 pad"
+            device_name = "chatPlays Virtual Gamepad"
             device_version = 0x0114
 
         try:
@@ -163,7 +164,7 @@ class LinuxController(VirtualController):
             ) from exc
 
         log.info(
-            "uinput device created: Microsoft X-Box 360 pad (%04x:%04x)",
+            "uinput device created: chatPlays Virtual Gamepad (%04x:%04x)",
             _VENDOR_ID,
             _PRODUCT_ID,
         )

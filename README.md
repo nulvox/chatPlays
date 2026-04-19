@@ -20,7 +20,20 @@ To load it automatically on boot, create a persistence file:
 echo "uinput" | sudo tee /etc/modules-load.d/uinput.conf
 ```
 
-**2. Add your user to the `input` group**
+**2. Install udev rules**
+
+```bash
+sudo cp 99-chatplays.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+This does three things:
+- Grants `/dev/uinput` access to the `input` group so chatPlays can run without root.
+- Tags chatPlays virtual gamepads (`045e:f100`) so Steam and your OS distinguish them from real controllers.
+- Binds real Xbox controllers (360, One, Series X|S, Elite, Adaptive) to the correct driver so they are never confused with chatPlays virtual devices.
+
+**3. Add your user to the `input` group**
 
 ```bash
 sudo usermod -aG input $USER
@@ -28,7 +41,7 @@ sudo usermod -aG input $USER
 
 Log out and back in (or run `newgrp input` in the current shell) for the group change to take effect.
 
-**3. Install dependencies**
+**4. Install dependencies**
 
 ```bash
 uv sync
@@ -48,7 +61,6 @@ Install the [ViGEm Bus Driver](https://github.com/ViGEm/ViGEmBus/releases) first
 uv sync --extra windows
 ```
 
-> **Note:** The Windows controller implementation is currently a stub (logs button presses but delivers no input). See `controller/windows.py` for the full implementation guide.
 
 ---
 
@@ -253,7 +265,7 @@ Then wire it into `main.py` in place of (or alongside) `DiscordAdapter`. The `on
 
 No special Steam Input profile or controller mapping is needed.
 
-On Linux, the virtual device is created with the official Xbox 360 USB vendor/product IDs (`045e:028e`) via `/dev/uinput`. Steam's kernel-level input stack detects it as a native Xbox 360 controller the same way it would detect a physical one plugged in over USB.
+On Linux, the virtual device is created via `/dev/uinput` with Microsoft's vendor ID (`045e`) and a custom product ID (`f100`). Steam detects it as an Xbox-family controller. The custom PID ensures your OS and Steam can tell chatPlays apart from real Xbox controllers — see `99-chatplays.rules` for the udev rules that make this work.
 
 If Steam does not detect the controller immediately, try toggling **Steam → Settings → Controller → General Controller Settings** to refresh the device list.
 
@@ -270,7 +282,7 @@ chatPlays/
 ├── controller/
 │   ├── __init__.py          # Abstract base (VirtualController) + platform factory
 │   ├── linux.py             # python-uinput implementation
-│   └── windows.py           # vgamepad stub
+│   └── windows.py           # vgamepad + ViGEmBus implementation
 └── adapters/
     ├── __init__.py          # Abstract base (ChatAdapter)
     └── discord_adapter.py   # discord.py implementation

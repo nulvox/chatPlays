@@ -1,0 +1,67 @@
+# chatPlays — udev rules for virtual and physical Xbox controllers
+#
+# Install:
+#   sudo cp 99-chatplays.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+#
+# These rules:
+#   1. Allow non-root access to /dev/uinput so chatPlays can create virtual
+#      controllers without running as root (user must be in the "input" group).
+#   2. Tag chatPlays virtual gamepads (VID 045e, PID f100) so Steam and other
+#      software can distinguish them from real Xbox 360 controllers.
+#   3. Bind real Xbox controllers to the xpad driver so they are not confused
+#      with chatPlays virtual devices.
+
+# ── /dev/uinput access for the "input" group ────────────────────────────────
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660"
+
+# ── chatPlays virtual gamepads (045e:f100) ───────────────────────────────────
+# The custom product ID (f100) ensures these rules never match a real
+# Microsoft controller.  ENV{ID_INPUT_JOYSTICK} tells libinput, SDL, and
+# Steam to treat the device as a gamepad.
+SUBSYSTEM=="input", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="f100", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="chatplays", \
+    MODE="0660", GROUP="input"
+
+# ── Real Xbox controllers → xpad driver ─────────────────────────────────────
+# Explicitly bind common Xbox controller PIDs to the xpad kernel driver so
+# the system always uses the correct driver for physical hardware.
+#
+# Xbox 360 wired controller
+SUBSYSTEM=="usb", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="028e", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xbox360"
+# Xbox 360 wireless receiver
+SUBSYSTEM=="usb", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0719", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xbox360"
+# Xbox One controller (USB)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="02d1", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xboxone"
+# Xbox One S controller (USB)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="02ea", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xboxone"
+# Xbox One S controller (Bluetooth)
+SUBSYSTEM=="input", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="02fd", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xboxone-bt"
+# Xbox Series X|S controller (USB)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0b12", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xboxseriesx"
+# Xbox Series X|S controller (Bluetooth)
+SUBSYSTEM=="input", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0b13", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xboxseriesx-bt"
+# Xbox Elite Series 2 controller
+SUBSYSTEM=="usb", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0b00", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xboxelite"
+# Xbox Adaptive Controller
+SUBSYSTEM=="usb", ATTRS{idVendor}=="045e", ATTRS{idProduct}=="0b0a", \
+    ENV{ID_INPUT_JOYSTICK}="1", \
+    TAG+="xboxadaptive"
