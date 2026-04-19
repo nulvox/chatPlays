@@ -5,8 +5,9 @@ Requires:
 - uinput kernel module   (modprobe uinput)
 - User in 'input' group  (sudo usermod -aG input $USER, then re-login)
 
-The device presents with Xbox 360 USB vendor/product IDs (045e:028e) so Steam
-recognises it as a native controller without any special Steam Input profile.
+The device presents as a virtual gamepad with a chatPlays-specific VID/PID
+(f0f0:cb01) so Steam recognises it as a controller without conflicting with
+any kernel gamepad driver's device alias table.
 
 D-pad note: on a real Xbox 360 controller the d-pad is exposed as two HAT axes
 (ABS_HAT0X / ABS_HAT0Y), not as buttons. We replicate that here so Steam
@@ -29,11 +30,13 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Virtual controller identity.  We use the pid.codes open-source VID (0x1209)
-# with a chatPlays-specific PID so the device is never confused with a real
-# Microsoft Xbox controller (045e:028e).  BUS_VIRTUAL tells the kernel (and
-# Steam/SDL) this is a software device, not physical USB hardware.
-_VENDOR_ID = 0x1209
+# Virtual controller identity.  We use VID 0xF0F0 — a value that sits outside
+# every kernel gamepad driver's alias table (xpad, xpadneo, hid-playstation,
+# etc.) — paired with a chatPlays-specific PID.  BUS_VIRTUAL tells the kernel
+# (and Steam/SDL) this is a software device, not physical USB hardware.
+# The previous pid.codes VID 0x1209 collided with xpad's alias list, which
+# could cause the wrong driver to bind when real controllers were also present.
+_VENDOR_ID = 0xF0F0
 _PRODUCT_ID = 0xCB01
 _BUS_VIRTUAL = 0x06
 
