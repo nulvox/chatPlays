@@ -30,7 +30,7 @@ sudo udevadm trigger
 
 This does three things:
 - Grants `/dev/uinput` access to the `input` group so chatPlays can run without root.
-- Tags chatPlays virtual gamepads (`045e:f100`) so Steam and your OS distinguish them from real controllers.
+- Tags chatPlays virtual gamepads (`1209:cb01`) so Steam and your OS distinguish them from real controllers.
 - Binds real Xbox controllers (360, One, Series X|S, Elite, Adaptive) to the correct driver so they are never confused with chatPlays virtual devices.
 
 **3. Add your user to the `input` group**
@@ -265,7 +265,7 @@ Then wire it into `main.py` in place of (or alongside) `DiscordAdapter`. The `on
 
 No special Steam Input profile or controller mapping is needed.
 
-On Linux, the virtual device is created via `/dev/uinput` with Microsoft's vendor ID (`045e`) and a custom product ID (`f100`). Steam detects it as an Xbox-family controller. The custom PID ensures your OS and Steam can tell chatPlays apart from real Xbox controllers — see `99-chatplays.rules` for the udev rules that make this work.
+On Linux, the virtual device is created via `/dev/uinput` with the pid.codes open-source vendor ID (`1209:cb01`) and `BUS_VIRTUAL`. Steam detects it as a gamepad from its evdev capabilities (buttons and axes). The distinct VID/PID and bus type ensure your OS and Steam never confuse it with a real Xbox controller — see `99-chatplays.rules` for the udev rules.
 
 If Steam does not detect the controller immediately, try toggling **Steam → Settings → Controller → General Controller Settings** to refresh the device list.
 

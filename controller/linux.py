@@ -29,12 +29,13 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# USB IDs for the virtual controller.  We keep Microsoft's vendor ID so Steam
-# recognises the device as an Xbox-family controller, but use a distinct
-# product ID (0xF100) to avoid confusion with real Xbox 360 pads (0x028E).
-_VENDOR_ID = 0x045E
-_PRODUCT_ID = 0xF100
-_BUS_USB = 0x03
+# Virtual controller identity.  We use the pid.codes open-source VID (0x1209)
+# with a chatPlays-specific PID so the device is never confused with a real
+# Microsoft Xbox controller (045e:028e).  BUS_VIRTUAL tells the kernel (and
+# Steam/SDL) this is a software device, not physical USB hardware.
+_VENDOR_ID = 0x1209
+_PRODUCT_ID = 0xCB01
+_BUS_VIRTUAL = 0x06
 
 
 @dataclass(frozen=True)
@@ -149,7 +150,7 @@ class LinuxController(VirtualController):
             self._device = uinput.Device(
                 events,
                 name=device_name,
-                bustype=_BUS_USB,
+                bustype=_BUS_VIRTUAL,
                 vendor=_VENDOR_ID,
                 product=_PRODUCT_ID,
                 version=device_version,
